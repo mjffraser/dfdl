@@ -9,12 +9,72 @@ Use forward declaration wherever possible, *especially* for classes and structs 
 
 ***DO NOT USE `using namespace` EVER***. Avoid `using` altogether in header files *unless* defining a custom type.
 
+### Comment Format:
+Functions: 
+```
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * funcName
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> desc, all aligned...................................................
+ *    like this..............don't write past the horizontal dividers like this.
+ *
+ * Takes:
+ * -> arg1Name:
+ *    desc aligned with name. no new -> until the next arg.
+ * 
+ * Throws: (include if errors are possible)
+ * -> errOneName:
+ *    what causes error.
+ *
+ * Returns:
+ * -> On success:
+ *    desc, aligned like above.
+ * -> On failure:
+ *    desc. 
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */ 
+```
+
+Ideally, try not to throw errors in functions and instead utilize a return code. Multiple return types can be defined under `On failure`.
+
+Classes and Structs:
+```
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * ClassOrStructName
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> This class does...
+ *
+ * Member Variables:
+ * -> var_name:
+ *    high level desc.
+ * 
+ * Don't include this line but if a class should also include:
+ * Constructor:
+ * -> Takes:
+ *    -> arg1Name:
+ *       desc aligned.
+ *    -> arg2Name:
+ *       desc aligned.
+ * -> Throws: (include if errors are possible)
+ *    -> err1Name:
+ *       how error occurs, aligned as usual.
+ * REPEAT FOR DESTRUCTOR AND COPY/MOVE CONSTRUCTORS IF DEFINED.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+```
+
+Member function comments should be inline. Since constructors have no return type errors *should* be thrown to indicate something going wrong. Ideally, we design around this to make failure hard in the first place if you're able to create the object.
+
 ---
 
 ### Tabbing:
 Spaces only, so there's no ambiguity about code alignment. There should be an option somewhere in your editor to have tab characters replaced automatically with spaces.
 
-X spaces for tabs.
+4 spaces for tabs.
 
 ---
 

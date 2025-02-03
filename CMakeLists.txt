@@ -4,13 +4,22 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+#externally installed libs
 find_package(OpenSSL REQUIRED)
 
+#header-only libs
+set(LIB_SRC
+    lib/sqlite/sqlite3.c     
+)
+
 set(ALL_SRC
-    
+    ${LIB_SRC}    
     src/main.cpp
 )
 
 add_executable(dfdl ${ALL_SRC})
-target_include_directories(dfdl PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(dfdl PRIVATE 
+                           ${CMAKE_CURRENT_SOURCE_DIR}/include 
+                           ${CMAKE_CURRENT_SOURCE_DIR}/lib/sqlite
+                          )
 target_link_libraries(dfdl PRIVATE OpenSSL::SSL)
