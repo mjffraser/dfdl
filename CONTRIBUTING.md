@@ -9,13 +9,28 @@ Use forward declaration wherever possible, *especially* for classes and structs 
 
 ***DO NOT USE `using namespace` EVER***. Avoid `using` altogether in header files *unless* defining a custom type.
 
+When defining headers, try to have a single access header for a given module. Everything else should be nested into an `internal/` module. Any outside module should need zero knowledge of what `internal/` contains in order to use it. So for example, if a primality testing module is needed, the following would ideally exist:
+
+#### Internal modules (optional, but strongly recommended):
+```
+include/prime_testing/internal/*   <-- this is where all the logic for testing a prime would be
+include/prime_testing/isPrime.hpp  <-- contains a function isPrime() that uses functions from
+                                       include/prime_testing/internal/* in its src file.
+
+(there are matching src files of course)
+```
+
+Essentially, a header inside a `internal` directory should only ever be included by something in its direct parent directory. Anything more than one degree of separation from `internal` should have nor need any knowledge of what's inside.
+
+---
+
 ### Comment Format:
 Functions: 
 ```
 /*
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * funcName
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
  * -> desc, all aligned...................................................
  *    like this..............don't write past the horizontal dividers like this.
@@ -33,7 +48,7 @@ Functions:
  *    desc, aligned like above.
  * -> On failure:
  *    desc. 
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */ 
 ```
 
@@ -42,9 +57,9 @@ Ideally, try not to throw errors in functions and instead utilize a return code.
 Classes and Structs:
 ```
 /*
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * ClassOrStructName
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
  * -> This class does...
  *
@@ -63,7 +78,7 @@ Classes and Structs:
  *    -> err1Name:
  *       how error occurs, aligned as usual.
  * REPEAT FOR DESTRUCTOR AND COPY/MOVE CONSTRUCTORS IF DEFINED.
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 ```
 
