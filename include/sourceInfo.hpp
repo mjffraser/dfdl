@@ -22,6 +22,7 @@ namespace dfd {
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 struct SourceInfo {
+    uint64_t    client_addr;
     std::string ip_addr;
     uint16_t    port;
 };
