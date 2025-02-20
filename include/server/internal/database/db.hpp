@@ -204,8 +204,7 @@ public:
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
     int grabSources(const uint64_t&          uuid,
-                    std::vector<SourceInfo>& dest,
-                    uint64_t                 f_size);
+                    std::vector<SourceInfo>& dest);
 
 
     /*
