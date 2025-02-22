@@ -30,16 +30,16 @@ namespace dfd {
  *
  * Returns:
  * -> On success:
- *    EXIT_SUCCESS
+ *    SQLITE_OK
  * -> On failure:
- *    Non-EXIT_SUCCESS. sqlite3_errmsg(RETURNED) can retrieve error message. 
+ *    Non-SQLITE_OK. sqlite3_errmsg(RETURNED) can retrieve error message. 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int createTable(sqlite3*                db, 
-                std::string             name, 
-                TableKey                primary_key, 
-                std::vector<ForeignKey> foreign_keys, 
-                std::vector<TableKey>   attributes
+int createTable(sqlite3*                      db, 
+                const std::string             name, 
+                const TableKey                primary_key, 
+                const std::vector<ForeignKey> foreign_keys, 
+                const std::vector<TableKey>   attributes
                );
 
 /*
@@ -57,12 +57,12 @@ int createTable(sqlite3*                db,
 
  * Returns:
  * -> On success:
- *    EXIT_SUCCESS
+ *    SQLITE_OK
  * -> On failure:
- *    Non-EXIT_SUCCESS. sqlite3_errmsg(RETURNED) can retrieve error message. 
+ *    Non-SQLITE_OK. sqlite3_errmsg(RETURNED) can retrieve error message. 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int dropTable(sqlite3* db, const char* name);
+int dropTable(sqlite3* db, const std::string& name);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -85,16 +85,16 @@ int dropTable(sqlite3* db, const char* name);
  *
  * Returns:
  * -> On success:
- *    EXIT_SUCCESS
+ *    SQLITE_OK
  * -> On failure:
- *    Non-EXIT_SUCCESS. sqlite3_errmsg(RETURNED) can retrieve error message. 
+ *    Non-SQLITE_OK. sqlite3_errmsg(RETURNED) can retrieve error message. 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int doSelect(sqlite3*                 db,
-             std::string              table_name,
-             std::vector<std::string> attributes,
-             std::vector<std::string> conditions,
-             std::vector<Row>*        dest
+int doSelect(sqlite3*                       db,
+             const std::string              table_name,
+             const std::vector<std::string> attributes,
+             const std::vector<std::string> conditions,
+                   std::vector<Row>*        dest
             );
 
 /*
@@ -115,14 +115,14 @@ int doSelect(sqlite3*                 db,
  *
  * Returns:
  * -> On success:
- *    EXIT_SUCCESS
+ *    SQLITE_OK
  * -> On failure:
- *    Non-EXIT_SUCCESS. sqlite3_errmsg(RETURNED) can retrieve error message. 
+ *    Non-SQLITE_OK. sqlite3_errmsg(RETURNED) can retrieve error message. 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int doInsert(sqlite3*                        db,
-             std::string                     table_name,
-             std::vector<AttributeValuePair> values
+int doInsert(sqlite3*                              db,
+             const std::string                     table_name,
+             const std::vector<AttributeValuePair> values
             );
 
 /*
@@ -144,15 +144,15 @@ int doInsert(sqlite3*                        db,
  *
  * Returns:
  * -> On success:
- *    EXIT_SUCCESS
+ *    SQLITE_OK
  * -> On failure:
- *    Non-EXIT_SUCCESS. sqlite3_errmsg(RETURNED) can retrieve error message. 
+ *    Non-SQLITE_OK. sqlite3_errmsg(RETURNED) can retrieve error message. 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int doUpdate(sqlite3*                        db,
-             std::string                     table_name,
-             AttributeValuePair              pk_pair,
-             std::vector<AttributeValuePair> values
+int doUpdate(sqlite3*                              db,
+             const std::string                     table_name,
+             const AttributeValuePair              pk_pair,
+             const std::vector<AttributeValuePair> values
             );
 
 /*
@@ -172,14 +172,14 @@ int doUpdate(sqlite3*                        db,
  *
  * Returns:
  * -> On success:
- *    EXIT_SUCCESS
+ *    SQLITE_OK
  * -> On failure:
- *    Non-EXIT_SUCCESS. sqlite3_errmsg(RETURNED) can retrieve error message. 
+ *    Non-SQLITE_OK. sqlite3_errmsg(RETURNED) can retrieve error message. 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int doDelete(sqlite3*           db,
-             std::string        table_name,
-             AttributeValuePair pk_pair
+int doDelete(sqlite3*                 db,
+             const std::string        table_name,
+             const AttributeValuePair pk_pair
             );
 
 } //dfd

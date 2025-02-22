@@ -134,6 +134,8 @@ public:
     int grabSources(const std::string&       uuid,
                     std::vector<SourceInfo>& dest,
                     uint64_t&                f_size);
+
+    int updateClient(const SourceInfo& client_info);
     
     //CONSTRUCTOR
     Database(const std::string& db_path) {
