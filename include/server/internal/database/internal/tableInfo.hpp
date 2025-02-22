@@ -6,34 +6,34 @@
 namespace dfd {
 
 // TABLE NAMES
-inline constexpr char CLIENT_NAME      [] = "CLIENT";
-inline constexpr char INDEX_NAME       [] = "INDEX";
-inline constexpr char CLIENT_INDEX_NAME[] = "CLIENT_INDEX";
+inline constexpr char PEER_NAME [] = "PEERS";
+inline constexpr char FILE_NAME [] = "FILES";
+inline constexpr char INDEX_NAME[] = "FILE_INDEX";
 
 // PRIMARY KEYS
-inline const TableKey CLIENT_KEY       = {"id",      "INT"};
-inline const TableKey INDEX_KEY        = {"id",      "INT"};
-inline const TableKey CLIENT_INDEX_KEY = {"cid_iid", "TEXT"}; //derived manually for ease of use
+inline const TableKey PEER_KEY  = {"id",      "INT"};
+inline const TableKey FILE_KEY  = {"id",      "INT"};
+inline const TableKey INDEX_KEY = {"pid_fid", "TEXT"}; //derived manually for ease of use
 
 // ATTRIBUTES DEFINITIONS
-inline const std::vector<TableKey> CLIENT_ATTRIBUTES = {
+inline const std::vector<TableKey> PEER_ATTRIBUTES = {
     std::make_pair("ip_addr", "TEXT"),
     std::make_pair("port",    "INT") 
 };
 
-inline const std::vector<TableKey> INDEX_ATTRIBUTES = {
+inline const std::vector<TableKey> FILE_ATTRIBUTES = {
     std::make_pair("size", "INT"),
 };
 
-inline const std::vector<TableKey> CLIENT_INDEX_ATTRIBUTES = {
+inline const std::vector<TableKey> INDEX_ATTRIBUTES = {
     std::make_pair("client_id", "INT"),
     std::make_pair("index_id",  "INT")
 };
 
 // FOREIGN KEYS
-inline const std::vector<ForeignKey> CLIENT_INDEX_FK = {
-    std::make_tuple("client_id", "CLIENT", "id"),
-    std::make_tuple("index_id",  "INDEX",  "id")
+inline const std::vector<ForeignKey> INDEX_FK = {
+    std::make_tuple(INDEX_ATTRIBUTES[0].first, PEER_NAME, PEER_KEY.first), //client_id
+    std::make_tuple(INDEX_ATTRIBUTES[1].first,  FILE_NAME, FILE_KEY.first) //index_id
 };
 
 } //dfd

@@ -1,4 +1,6 @@
 #include "server/internal/database/internal/queries.hpp"
+#include <iostream>
+#include <ostream>
 
 namespace dfd {
 
@@ -82,10 +84,10 @@ int doSelect(sqlite3*                       db,
     return sqlite3_exec(db, query.c_str(), callback, dest, nullptr);
 }
 
-std::string castVariant(const std::variant<uint64_t, uint32_t, std::string>& val) {
+std::string castVariant(const std::variant<uint64_t, uint16_t, std::string>& val) {
     if (auto v = std::get_if<uint64_t>(&val))
         return std::to_string(*v);
-    else if (auto v = std::get_if<uint32_t>(&val))
+    else if (auto v = std::get_if<uint16_t>(&val))
         return std::to_string(*v);
     else if (auto v = std::get_if<std::string>(&val))
         return "'" + *v + "'";

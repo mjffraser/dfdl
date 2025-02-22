@@ -21,6 +21,6 @@ using ForeignKey = std::tuple<std::string,  //KEY_NAME
 
 using AttributeValuePair = std::pair<std::string,                //attribute name      
                                      std::variant<uint64_t,      //possible type (sha256 hashes, file sizes)
-                                                  uint32_t,      //possible type (port #)
+                                                  uint16_t,      //possible type (port #)
                                                   std::string>>; //possible type (names, etc.)
 } //dfd

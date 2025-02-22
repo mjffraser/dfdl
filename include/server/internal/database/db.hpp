@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -57,6 +58,21 @@ private:
 public:
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * sqliteError
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * Description:
+     * -> Reports the most recent SQLite database error. Should be called after
+     *    one of the below functions reports EXIT_FAILURE.
+     *
+     * Returns:
+     * -> On success:
+     *    The error message as a std::string
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     */
+    std::string sqliteError();
+
+    /*
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      * indexFile
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      * Description:
@@ -79,9 +95,9 @@ public:
      *    EXIT_FAILURE
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int indexFile(const std::string& uuid, 
+    int indexFile(const uint64_t     uuid, 
                   const SourceInfo&  indexer,
-                  const uint64_t&    f_size);
+                  const uint64_t     f_size);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -104,7 +120,7 @@ public:
      *    EXIT_FAILURE
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int dropIndex(const std::string& uuid, const SourceInfo& indexer);
+    int dropIndex(const uint64_t uuid, const SourceInfo& indexer);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -131,11 +147,31 @@ public:
      *    EXIT_FAILURE, on a critical error.
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int grabSources(const std::string&       uuid,
+    int grabSources(const uint64_t&          uuid,
                     std::vector<SourceInfo>& dest,
-                    uint64_t&                f_size);
+                    uint64_t                 f_size);
 
-    int updateClient(const SourceInfo& client_info);
+
+    /*
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * updateClient
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * Description:
+     * -> Updates a clients source info within their database row. If no row
+     *    exists, one is inserted.
+     *
+     * Takes:
+     * -> indexer:
+     *    A SourceInfo object with the up-to-date information.
+     *
+     * Returns:
+     * -> On success:
+     *    EXIT_SUCCESS, even if no indexed entries found.
+     * -> On failure:
+     *    EXIT_FAILURE, on a critical error.
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     */
+    int updateClient(const SourceInfo& indexer);
     
     //CONSTRUCTOR
     Database(const std::string& db_path) {
@@ -145,11 +181,11 @@ public:
 
         if (!existed) {
             if (setupDatabase() != EXIT_SUCCESS)
-                ; //err 
+                throw std::runtime_error(sqliteError());
         }
 
         if (sqlite3_exec(db, "PRAGMA foreign_keys = ON", nullptr, nullptr, nullptr) != SQLITE_OK) {
-            ; //err
+            throw std::runtime_error(sqliteError());
         }
     }  
 };

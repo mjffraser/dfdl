@@ -14,12 +14,13 @@ set(LIB_SRC
 
 #all server src files
 set(SERVER_SRC
-    src/server/database/db.cpp
-    src/server/database/internal/queries.cpp
+    src/server/internal/database/db.cpp
+    src/server/internal/database/internal/queries.cpp
 )
 
 set(ALL_SRC
     ${LIB_SRC}    
+    ${SERVER_SRC}
     src/main.cpp
 )
 
