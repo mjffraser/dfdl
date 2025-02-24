@@ -243,7 +243,11 @@ public:
         if (sqlite3_exec(db, "PRAGMA foreign_keys = ON", nullptr, nullptr, nullptr) != SQLITE_OK) {
             throw std::runtime_error(sqliteError());
         }
-    }  
+    }
+
+    ~Database() {
+        sqlite3_close(db);
+    }
 };
 
 } //dfd 
