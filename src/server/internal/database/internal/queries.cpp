@@ -4,12 +4,11 @@
 
 namespace dfd {
 
-int createTable(sqlite3*                      db, 
-                const std::string             name, 
-                const TableKey                primary_key, 
-                const std::vector<ForeignKey> foreign_keys, 
-                const std::vector<TableKey>   attributes
-               ) {
+std::optional<std::string> createTable(sqlite3*                      db, 
+                                       const std::string             name, 
+                                       const TableKey                primary_key, 
+                                       const std::vector<ForeignKey> foreign_keys, 
+                                       const std::vector<TableKey>   attributes) {
     std::string query;
     query += "CREATE TABLE " + name + "(";
 
@@ -30,13 +29,19 @@ int createTable(sqlite3*                      db,
 
     query += ");";
 
-    //return either SQLITE_OK or the error code to check
-    return sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    //execute and check return value
+    int res = sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    if (res != SQLITE_OK)
+        return "Could not create table.\nSQLITE ERROR MESSAGE:\n" + std::string(sqlite3_errmsg(db));
+    return std::nullopt;
 }
 
-int dropTable(sqlite3* db, const std::string& name) {
+std::optional<std::string> dropTable(sqlite3* db, const std::string& name) {
     std::string query = "DROP TABLE " + name + ";";
-    return sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    int res = sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    if (res != SQLITE_OK)
+        return "Could not drop table.\nSQLITE ERROR MESSAGE:\n" + std::string(sqlite3_errmsg(db));
+    return std::nullopt;
 }
 
 int callback(void* data, int columns, char** col_vals, char** col_names) {
@@ -49,12 +54,11 @@ int callback(void* data, int columns, char** col_vals, char** col_names) {
     return 0;
 }
 
-int doSelect(sqlite3*                       db,
-             const std::string              table_name,
-             const std::vector<std::string> attributes,
-             const std::vector<std::string> conditions,
-                   std::vector<Row>*        dest
-            ) {
+std::optional<std::string> doSelect(sqlite3*                       db,
+                                    const std::string              table_name,
+                                    const std::vector<std::string> attributes,
+                                    const std::vector<std::string> conditions,
+                                          std::vector<Row>*        dest) {
     std::string query = "SELECT ";
 
     //to select
@@ -81,7 +85,10 @@ int doSelect(sqlite3*                       db,
     query += ";";
 
     //puts selected rows into dest via callback
-    return sqlite3_exec(db, query.c_str(), callback, dest, nullptr);
+    int res = sqlite3_exec(db, query.c_str(), callback, dest, nullptr);
+    if (res != SQLITE_OK)
+        return sqlite3_errmsg(db);
+    return std::nullopt;
 }
 
 std::string castVariant(const std::variant<uint64_t, uint16_t, std::string>& val) {
@@ -95,10 +102,9 @@ std::string castVariant(const std::variant<uint64_t, uint16_t, std::string>& val
         return "";
 }
 
-int doInsert(sqlite3*                              db,
-             const std::string                     table_name,
-             const std::vector<AttributeValuePair> values
-            ) {
+std::optional<std::string> doInsert(sqlite3*                              db,
+                                    const std::string                     table_name,
+                                    const std::vector<AttributeValuePair> values) {
     std::string query = "INSERT INTO " + table_name + "(";
 
     //build value string at the same time
@@ -116,14 +122,18 @@ int doInsert(sqlite3*                              db,
     //append value string
     query += ") VALUES " + value_string + ");";
     
-    return sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    int res = sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    if (res != SQLITE_OK)
+        return sqlite3_errmsg(db);
+    if (sqlite3_changes(db) < 1)
+        return "No row could be inserted.";
+    return std::nullopt;
 }
 
-int doUpdate(sqlite3*                              db,
-             const std::string                     table_name,
-             const AttributeValuePair              pk_pair,
-             const std::vector<AttributeValuePair> values
-            ) {
+std::optional<std::string> doUpdate(sqlite3*                              db,
+                                    const std::string                     table_name,
+                                    const AttributeValuePair              pk_pair,
+                                    const std::vector<AttributeValuePair> values) {
     std::string query = "UPDATE " + table_name + " SET ";
 
     //to update
@@ -136,18 +146,27 @@ int doUpdate(sqlite3*                              db,
     query += " WHERE " + pk_pair.first + "=" + castVariant(pk_pair.second);
     query += ";";
 
-    return sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    int res = sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    if (res != SQLITE_OK)
+        return sqlite3_errmsg(db);
+    if (sqlite3_changes(db) < 1)
+        return "Could not update row.";
+    return std::nullopt;
 }
 
-int doDelete(sqlite3*                 db,
-             const std::string        table_name,
-             const AttributeValuePair pk_pair
-            ) {
+std::optional<std::string> doDelete(sqlite3*                 db,
+                                    const std::string        table_name,
+                                    const AttributeValuePair pk_pair) {
     std::string query = "DELETE FROM " + table_name + " WHERE ";
     query += pk_pair.first + "=" + castVariant(pk_pair.second);
     query += ";";
 
-    return sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    int res = sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    if (res != SQLITE_OK)
+        return sqlite3_errmsg(db);
+    if (sqlite3_changes(db) < 1)
+        return "Could not delete row.";
+    return std::nullopt;
 }
 
 } //dfd

@@ -8,6 +8,8 @@
 
 #include <sqlite3.h>
 
+#include "server/internal/database/internal/types.hpp"
+
 namespace dfd {
 
 struct SourceInfo; //definition in src
@@ -36,7 +38,8 @@ struct SourceInfo; //definition in src
  */
 class Database {
 private:
-    sqlite3* db;
+    sqlite3*    db;
+    std::string err_msg = ""; //set on any error
     
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -54,6 +57,59 @@ private:
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
     int setupDatabase();
+    
+    /*
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * reportError
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * Description:
+     * -> Called internally when an error occurs to populate an error message
+     *    for sqliteError() to return.
+     *
+     * Takes:
+     * -> The error message.
+     *
+     * Returns:
+     * -> On success:
+     *    EXIT_FAILURE
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     */
+    int reportError(const std::string& err_msg);
+
+
+    /*
+    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+    * insertOrUpdate
+    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+    * Description:
+    * -> Checks SQLite database for an entry. If it exists, updates the row with
+    *    the provided values. If it doesn't, inserts a row into the database.
+    *
+    * Takes:
+    * -> db:
+    *    The SQLite database to operate on.
+    * -> table_name:
+    *    The table name to select, and insert or update with.
+    * -> pk_pair:
+    *    The primary key of the row to select.
+    * -> values:
+    *    The value pairs in the form <"key_name", value> to insert/update. Is
+    *    modified if an insertion occurs to add primary key value pair in.
+    * -> pk_condition:
+    *    The condition to select the row with. Ex. "id=16274526523232"
+    *
+    * Returns:
+    * -> On success:
+    *    EXIT_SUCCESS
+    * -> On failure:
+    *    EXIT_FAILURE
+    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+    */
+    int insertOrUpdate(sqlite3*                               db, 
+                       const std::string&                     table_name, 
+                       const AttributeValuePair&              pk_pair, 
+                             std::vector<AttributeValuePair>& values,
+                       const std::string&                     pk_condition);
 
 public:
     /*
