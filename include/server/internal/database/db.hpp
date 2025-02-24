@@ -1,11 +1,14 @@
 #pragma once
 
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <fstream>
 
 #include <sqlite3.h>
+
+#include "server/internal/database/internal/types.hpp"
 
 namespace dfd {
 
@@ -35,7 +38,8 @@ struct SourceInfo; //definition in src
  */
 class Database {
 private:
-    sqlite3* db;
+    sqlite3*    db;
+    std::string err_msg = ""; //set on any error
     
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -53,8 +57,76 @@ private:
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
     int setupDatabase();
+    
+    /*
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * reportError
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * Description:
+     * -> Called internally when an error occurs to populate an error message
+     *    for sqliteError() to return.
+     *
+     * Takes:
+     * -> The error message.
+     *
+     * Returns:
+     * -> On success:
+     *    EXIT_FAILURE
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     */
+    int reportError(const std::string& err_msg);
+
+
+    /*
+    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+    * insertOrUpdate
+    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+    * Description:
+    * -> Checks SQLite database for an entry. If it exists, updates the row with
+    *    the provided values. If it doesn't, inserts a row into the database.
+    *
+    * Takes:
+    * -> db:
+    *    The SQLite database to operate on.
+    * -> table_name:
+    *    The table name to select, and insert or update with.
+    * -> pk_pair:
+    *    The primary key of the row to select.
+    * -> values:
+    *    The value pairs in the form <"key_name", value> to insert/update. Is
+    *    modified if an insertion occurs to add primary key value pair in.
+    * -> pk_condition:
+    *    The condition to select the row with. Ex. "id=16274526523232"
+    *
+    * Returns:
+    * -> On success:
+    *    EXIT_SUCCESS
+    * -> On failure:
+    *    EXIT_FAILURE
+    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+    */
+    int insertOrUpdate(sqlite3*                               db, 
+                       const std::string&                     table_name, 
+                       const AttributeValuePair&              pk_pair, 
+                             std::vector<AttributeValuePair>& values,
+                       const std::string&                     pk_condition);
 
 public:
+    /*
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * sqliteError
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * Description:
+     * -> Reports the most recent SQLite database error. Should be called after
+     *    one of the below functions reports EXIT_FAILURE.
+     *
+     * Returns:
+     * -> On success:
+     *    The error message as a std::string
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     */
+    std::string sqliteError();
+
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      * indexFile
@@ -79,9 +151,9 @@ public:
      *    EXIT_FAILURE
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int indexFile(const std::string& uuid, 
+    int indexFile(const uint64_t     uuid, 
                   const SourceInfo&  indexer,
-                  const uint64_t&    f_size);
+                  const uint64_t     f_size);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -104,7 +176,7 @@ public:
      *    EXIT_FAILURE
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int dropIndex(const std::string& uuid, const SourceInfo& indexer);
+    int dropIndex(const uint64_t uuid, const SourceInfo& indexer);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -131,9 +203,31 @@ public:
      *    EXIT_FAILURE, on a critical error.
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int grabSources(const std::string&       uuid,
+    int grabSources(const uint64_t&          uuid,
                     std::vector<SourceInfo>& dest,
-                    uint64_t&                f_size);
+                    uint64_t                 f_size);
+
+
+    /*
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * updateClient
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * Description:
+     * -> Updates a clients source info within their database row. If no row
+     *    exists, one is inserted.
+     *
+     * Takes:
+     * -> indexer:
+     *    A SourceInfo object with the up-to-date information.
+     *
+     * Returns:
+     * -> On success:
+     *    EXIT_SUCCESS, even if no indexed entries found.
+     * -> On failure:
+     *    EXIT_FAILURE, on a critical error.
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     */
+    int updateClient(const SourceInfo& indexer);
     
     //CONSTRUCTOR
     Database(const std::string& db_path) {
@@ -143,11 +237,11 @@ public:
 
         if (!existed) {
             if (setupDatabase() != EXIT_SUCCESS)
-                ; //err 
+                throw std::runtime_error(sqliteError());
         }
 
         if (sqlite3_exec(db, "PRAGMA foreign_keys = ON", nullptr, nullptr, nullptr) != SQLITE_OK) {
-            ; //err
+            throw std::runtime_error(sqliteError());
         }
     }  
 };

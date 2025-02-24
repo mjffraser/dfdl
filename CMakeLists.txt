@@ -12,8 +12,15 @@ set(LIB_SRC
     lib/sqlite/sqlite3.c     
 )
 
+#all server src files
+set(SERVER_SRC
+    src/server/internal/database/db.cpp
+    src/server/internal/database/internal/queries.cpp
+)
+
 set(ALL_SRC
     ${LIB_SRC}    
+    ${SERVER_SRC}
     src/main.cpp
 )
 
