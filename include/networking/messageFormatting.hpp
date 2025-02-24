@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sourceInfo.hpp"
 #include <cstdint>
 #include <vector>
 
@@ -63,5 +64,11 @@ int packetsToData(const std::vector<DataPacket>& packet_buff,
                   std::vector<uint8_t>&          file_buff
                  );
 
+int indexToPackets(const SourceInfo& client_info, const std::string& file_hash, const uint64_t f_size); //index request from client->server
+int packetsToIndex(SourceInfo& client_info, std::string& file_hash, uint64_t* f_size); //the reverse of above
+int dropToPackets(); //drop request from client->server 
+int packetsToDrop(); //the reverse of the above
+int registerToPackets(); //i honestly forget 
+int packetsToRegister();
 
 }
