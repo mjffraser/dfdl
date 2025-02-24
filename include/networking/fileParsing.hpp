@@ -59,8 +59,7 @@ std::optional<ssize_t> fileSize(const std::string& f_path);
 int packageFileChunk(const std::string&      file_path, 
                      std::vector<uint8_t>&   buff, 
                      const size_t            chunk_size,
-                     const size_t            chunk
-                    );
+                     const size_t            chunk);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -89,8 +88,7 @@ int packageFileChunk(const std::string&      file_path,
  */
 int unpackFileChunk(const std::string&          file_path, 
                     const std::vector<uint8_t>& buff, 
-                    const size_t                chunk
-                   );
+                    const size_t                chunk);
 
 /* 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
