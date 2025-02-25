@@ -1,12 +1,53 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <vector>
+#include <memory>
+#include <fstream>
 
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * RECOMMENDED USAGE:
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Downloader:
+ * -> with the file size, call fileChunks() to get the number of chunks to recv.
+ * -> recv data into buffer and call unpackFileChunk() to store partial chunks
+ *    to the disk so others can be recieved async.
+ * -> when you have chunk 0 unpacked, call openFile(), which will convert
+ *    the first chunk to a file pointer that can be written to. this is NOT
+ *    thread safe. one thread should be calling fileSize() periodically to check 
+ *    for file chunks.
+ * -> with these chunks, call assembleChunk() to move the chunk data into the
+ *    file.
+ * -> when all chunks written, destroy the file pointer to save and write to
+ *    disk. use std::move() to give the pointer away for cleanup.
+ *
+ * Sender:
+ * -> Call fileSize() to get file size. Call fileChunks() for number of chunks
+ *    to send. 
+ * -> For chunks 0..n call packageFileChunk() to read them into memory to send.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
 
 namespace dfd {
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * setChunkSize
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Sets the chunk size to send and recieve at a time. The default of 1MiB is
+ *    recommended (ie, don't call this unless you have a good reason to).
+ *
+ * Takes:
+ * -> size:
+ *    The size of a chunk, in bytes. If 0, nothing happens.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+void setChunkSize(const size_t size);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -26,7 +67,28 @@ namespace dfd {
  *    std::nullopt
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-std::optional<ssize_t> fileSize(const std::string& f_path);
+std::optional<ssize_t> fileSize(const std::filesystem::path& f_path);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * chunksInFile
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Returns the number of chunks the file will be, calculated with the
+ *    internal chunk_size.
+ *
+ * Takes:
+ * -> f_size:
+ *    The size of the file, obtained from fileSize().
+ *
+ * Returns:
+ * -> On success:
+ *    Number of chunks.
+ * -> On failure:
+ *    std::nullopt
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+std::optional<size_t> fileChunks(const ssize_t f_size);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -51,15 +113,14 @@ std::optional<ssize_t> fileSize(const std::string& f_path);
  *
  * Returns:
  * -> On success:
- *    EXIT_SUCCESS
+ *    Bytes read into buffer.
  * -> On failure:
- *    EXIT_FAILURE
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *    std::nullopt
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int packageFileChunk(const std::string&      file_path, 
-                     std::vector<uint8_t>&   buff, 
-                     const size_t            chunk_size,
-                     const size_t            chunk);
+std::optional<ssize_t> packageFileChunk(const std::filesystem::path& f_path, 
+                                              std::vector<uint8_t>&  buff, 
+                                        const size_t                 chunk);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -67,15 +128,17 @@ int packageFileChunk(const std::string&      file_path,
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
  * -> Takes a recieved chunk of bytes, some data recieved from a collection of
- *    packets. Stores the bytes to disk so we can reuse the RAM. Temp files are
- *    stored in the cwd, then deleted by assembleFile.
+ *    packets. Stores the bytes to disk so we can reuse the RAM. Stores the file
+ *    in the download directory as f_path->[chunk#]
  *
  * Takes:
- * -> file_path:
- *    The path to the file, absolute from root or relative from cwd.
+ * -> f_name:
+ *    The name of the file where building. Ex. doc.txt, and chunks like
+ *    doc.txt-0 are unpacked.
  * -> buff:
- *    The buffer to read the file into. Any data in the buffer prior to this
- *    will be overwritten.
+ *    The buffer to read data off of.
+ * -> data_len:
+ *    The length of data to write.
  * -> chunk:
  *    Which chunk to store. 0-indexed.
  *
@@ -86,25 +149,76 @@ int packageFileChunk(const std::string&      file_path,
  *    EXIT_FAILURE
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int unpackFileChunk(const std::string&          file_path, 
-                    const std::vector<uint8_t>& buff, 
-                    const size_t                chunk);
+int unpackFileChunk(const std::string&           f_name, 
+                    const std::vector<uint8_t>&  buff, 
+                    const size_t                 data_len,
+                    const size_t                 chunk);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * openFile
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Creates a file, writing the first chunk to it. Must have the first chunk
+ *    unpacked by any download process to start creating the main file. Doesn't
+ *    care if first chunk is less than chunk_size (already EOF), expects the
+ *    caller to handle calling saveFile() after. Errors out if first chunk is
+ *    missing, or for any other reason like not being able to write to disk.
+ *
+ * Takes:
+ * -> f_name:
+ *    The name of the file to create inside the download directory.
+ *
+ * Returns:
+ * -> On success:
+ *    A pointer to the file. 
+ * -> On failure:
+ *   nullptr 
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+std::unique_ptr<std::ofstream> openFile(const std::string& f_name);
 
 /* 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * assembleFile
+ * assembleChunk
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Combines all file chunks into a single file. If this function can't locate
- *    all the file chunks and assert that it has f_size bytes stored it'll fail.
+ * -> Appends a chunk to the file. 
  *
  * Takes:
- * -> file_path:
- *    The path, absolute or relative, to store the final file at.
- * -> f_size:
+ * -> file:
+ *    The file to write the chunk to. 
+ * -> chunk:
  *    The size of the entire file.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCESS
+ * -> On failure:
+ *    EXIT_FAILURE
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int assembleFile(const std::string& file_path, const size_t f_size);
+int assembleChunk(      std::ofstream* file, 
+                  const std::string&                    f_name,
+                  const size_t                          chunk);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * saveFile
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Calls close on file, and releases ownership. Should only be called once
+ *    all chunks have been written to the file with assembleChunk. 
+ *
+ * Takes:
+ * -> file:
+ *    The file to close and deallocate.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCCESS
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int saveFile(std::unique_ptr<std::ofstream> file);
 
 }

@@ -1,6 +1,7 @@
 #include "networking/internal/fileParsing/fileUtil.hpp"
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 
 namespace dfd {
 
@@ -17,6 +18,10 @@ std::optional<ssize_t> readFile(const std::filesystem::path& f_path,
     if (!std::filesystem::exists(f_path))
         return std::nullopt;
 
+    //need space to write the data, otherwise read on .data() is undefined
+    if (buff.size() < read_size)
+        buff.resize(read_size);
+
     std::ifstream file(f_path, std::ios::binary);
     if (!file)
         return std::nullopt;
@@ -25,40 +30,42 @@ std::optional<ssize_t> readFile(const std::filesystem::path& f_path,
     if (!file)
         return std::nullopt;
 
-    if (buff.size() < read_size)
-        buff.resize(read_size);
-
     file.read(reinterpret_cast<char*>(buff.data()), read_size);
+    if (file.gcount() < read_size)
+        buff.resize(file.gcount());
     return file.gcount(); //file deallocated when stack frame is popped
 }
 
-std::optional<std::ofstream> writeToNewFile(const std::filesystem::path& f_path,
-                                            const size_t                 len,
-                                            const std::vector<uint8_t>&  data) {
-    if (std::filesystem::exists(f_path))
-        return std::nullopt; //file exists, do not overwrite
+std::unique_ptr<std::ofstream> writeToNewFile(const std::filesystem::path& f_path,
+                                              const size_t                 len,
+                                              const std::vector<uint8_t>&  data) {
+    if (std::filesystem::exists(f_path)) {
+        return nullptr; //file exists, do not overwrite
+    }
 
-    std::ofstream file(f_path, std::ios::binary);
-    if (!file)
-        return std::nullopt;
+    auto file = std::make_unique<std::ofstream>(f_path, std::ios::binary);
+    if (!file->is_open())
+        return nullptr;
 
-    file.write(reinterpret_cast<const char*>(data.data()), len);
-    if (!file)
-        return std::nullopt;
+    file->write(reinterpret_cast<const char*>(data.data()), len);
+
+    if (!file->good())
+        return nullptr;
     
+    file->flush();
     return file;
 }
 
-int writeToFile(const std::filesystem::path& f_path,
-                      std::ofstream&         file,
+int writeToFile(      std::ofstream*         file,
                 const size_t                 len,
                 const std::vector<uint8_t>&  data,
                 const size_t                 offset) {
-    if (!file.is_open())
+    if (!file->is_open())
         return EXIT_FAILURE;
 
-    file.seekp(offset);
-    file.write(reinterpret_cast<const char*>(data.data()), len);
+    file->seekp(offset);
+    file->write(reinterpret_cast<const char*>(data.data()), len);
+    file->flush();
     return EXIT_SUCCESS;
 }
 

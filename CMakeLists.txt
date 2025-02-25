@@ -21,7 +21,6 @@ set(SERVER_SRC
 #all networking & API src files
 set(NETWORKING_SRC
     src/networking/fileParsing.cpp
-    src/networking/internal/fileParsing/fileConstruction.cpp
     src/networking/internal/fileParsing/fileUtil.cpp
 )
 

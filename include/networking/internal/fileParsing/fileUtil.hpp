@@ -4,6 +4,8 @@
 #include <optional>
 #include <sys/types.h>
 #include <vector>
+#include <fstream>
+#include <memory>
 
 // THESE FUNCTIONS MAKE ZERO EFFORT TO HANDLE CONCURRENCY.
 // IF WRITE FUNCTIONS ARE USED BY MULTIPLE THREADS BEHAVIOUR
@@ -87,9 +89,9 @@ std::optional<ssize_t> readFile(const std::filesystem::path& f_path,
  *    std::nullopt
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-std::optional<std::ofstream> writeToNewFile(const std::filesystem::path& f_path,
-                                            const size_t                 len,
-                                            const std::vector<uint8_t>&  data);
+std::unique_ptr<std::ofstream> writeToNewFile(const std::filesystem::path& f_path,
+                                              const size_t                 len,
+                                              const std::vector<uint8_t>&  data);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -103,6 +105,8 @@ std::optional<std::ofstream> writeToNewFile(const std::filesystem::path& f_path,
  * Takes:
  * -> file:
  *    The file to append to.
+ * -> len:
+ *    The length of data.
  * -> data:
  *    The data to write.
  * -> offset:
@@ -115,8 +119,7 @@ std::optional<std::ofstream> writeToNewFile(const std::filesystem::path& f_path,
  *    EXIT_FAILURE
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int writeToFile(const std::filesystem::path& f_path,
-                      std::ofstream&         file,
+int writeToFile(      std::ofstream*         file,
                 const size_t                 len,
                 const std::vector<uint8_t>&  data,
                 const size_t                 offset);
