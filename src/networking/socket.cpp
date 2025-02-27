@@ -93,7 +93,8 @@ int sendMessage(int socket_fd, const std::vector<uint8_t>& data) {
     size_t data_len      = data.size();
 
     while (total_sent < data_len) {
-        ssize_t byte_sent = send(socket_fd, data.data() + total_sent, data_len - total_sent, 0);
+        ssize_t byte_sent = send(socket_fd, data.data() + total_sent, 
+                                 data_len - total_sent, 0);
 
         if (byte_sent < 0) {
             return EXIT_FAILURE;
@@ -104,40 +105,37 @@ int sendMessage(int socket_fd, const std::vector<uint8_t>& data) {
     return EXIT_SUCCESS;
 }
 
-/*
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * recvData
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * Description:
- * -> Reads data on the socket into a buffer if it's present. Appends to the
- *    buffer rather than overwriting since it very well could take many calls of
- *    this function to recieve the entire message.
- *
- * Takes:
- * -> socket_fd:
- *    The socket to read the data from.
- * -> buffer:
- *    The container to append the read bytes to.
- * -> try_to_recv:
- *    How many bytes to attempt to read.
- * -> timeout:
- *    How long this function attempts to read try_to_recv bytes for before
- *    giving up. 
- *
- * Returns:
- * -> On success:
- *    The number of bytes read. May or may not be equal to try_to_recv.
- * -> On failure:
- *    -1
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- */
+
 ssize_t recvData(int                   socket_fd, 
                  std::vector<uint8_t>& buffer, 
                  size_t                try_to_recv, 
                  timeval               timeout
-                );
+                ){
+    if (try_to_recv == 0) {
+        return -1;
+    }
 
-                
+    fd_set read_fds;
+    FD_ZERO(&read_fds);
+    FD_SET(socket_fd, &read_fds);
+    int ret = select(socket_fd + 1, &read_fds, NULL, NULL, &timeout);
+    if (ret <= 0) {
+        return -1;
+    }
 
+    size_t original_len = buffer.size();
+    buffer.resize(original_len + try_to_recv);
+
+    ssize_t byte_read = recv(socket_fd, &buffer[original_len], try_to_recv, 0);
+
+    if (byte_read > 0) {
+        buffer.resize(original_len + byte_read);
+        return byte_read;
+    }
+
+    buffer.resize(original_len);
+    return -1;
+
+}
 
 }
