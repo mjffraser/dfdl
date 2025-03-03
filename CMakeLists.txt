@@ -18,9 +18,17 @@ set(SERVER_SRC
     src/server/internal/database/internal/queries.cpp
 )
 
+#all networking & API src files
+set(NETWORKING_SRC
+    src/networking/fileParsing.cpp
+    src/networking/internal/fileParsing/fileUtil.cpp
+)
+
+
 set(ALL_SRC
     ${LIB_SRC}    
     ${SERVER_SRC}
+    ${NETWORKING_SRC}
     src/main.cpp
 )
 
