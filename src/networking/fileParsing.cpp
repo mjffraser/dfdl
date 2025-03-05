@@ -1,9 +1,12 @@
 #include "networking/fileParsing.hpp"
 #include "networking/internal/fileParsing/fileUtil.hpp"
+#include "networking/internal/messageFormatting/byteOrdering.hpp"
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <openssl/evp.h>
 
 namespace dfd {
 
@@ -230,6 +233,55 @@ int assembleChunk(      std::ofstream* file,
 int saveFile(std::unique_ptr<std::ofstream> file) {
     file->close();
     return EXIT_SUCCESS;
+}
+
+
+union DigestMap {
+    uint64_t uuid;
+    uint8_t  digest[8];
+};
+
+uint64_t sha512Hash(const std::filesystem::path& f_path) {
+    auto f_size = fileSize(f_path);     
+    if (!f_size)
+        return 0;
+
+    auto chunks = fileChunks(f_size.value());
+    if (!chunks) 
+        return 0;
+
+	EVP_MD_CTX* mdctx;
+	if ((mdctx = EVP_MD_CTX_new()) == NULL)
+        return 0;
+
+	if (1 != EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL))
+        return 0;
+
+    std::vector<uint8_t> buff; buff.resize(chunk_size);
+    for (size_t i = 0; i < chunks.value(); ++i) {
+        auto res = packageFileChunk(f_path, buff, i);        
+        if (!res)
+            return 0;
+        if (1 != EVP_DigestUpdate(mdctx, buff.data(), res.value()))
+            return 0;
+    }
+
+    uint8_t digest[EVP_MAX_MD_SIZE];
+    unsigned int hash_len = 0;
+	if (1 != EVP_DigestFinal_ex(mdctx, digest, &hash_len))
+        return 0;
+
+	EVP_MD_CTX_free(mdctx);
+    
+    DigestMap dm;
+    std::memcpy(&dm, digest, sizeof(uint64_t));
+
+    //we need to make sure big and little endian machines return
+    //the hash in the same ordering, so they handle it the same
+    int err_code = 0;
+    dm.uuid = toNetworkOrder(dm.uuid, err_code);
+
+    return dm.uuid;
 }
 
 } //dfd

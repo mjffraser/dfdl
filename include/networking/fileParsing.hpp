@@ -221,4 +221,26 @@ int assembleChunk(      std::ofstream* file,
  */
 int saveFile(std::unique_ptr<std::ofstream> file);
 
+/* 
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * sha256Hash
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Computes the SHA256 hash of a file on the disk. If the file DNE, or on any
+ *    other error (perms, etc.) 0 is returned. Truncates the first 8-bytes to
+ *    return.
+ *
+ * Takes:
+ * -> f_path:
+ *    The path to the file, relative or absolute, on the disk.
+ *
+ * Returns:
+ * -> On success:
+ *    A 8-byte hash.
+ * -> On failure:
+ *    0
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+uint64_t sha256Hash(const std::filesystem::path& f_path);
+
 }
