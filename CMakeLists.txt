@@ -22,6 +22,9 @@ set(SERVER_SRC
 set(NETWORKING_SRC
     src/networking/fileParsing.cpp
     src/networking/internal/fileParsing/fileUtil.cpp
+
+    src/networking/socket.cpp
+    src/networking/internal/sockets/socketUtil.cpp
 )
 
 

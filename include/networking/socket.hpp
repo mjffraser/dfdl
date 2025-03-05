@@ -1,9 +1,7 @@
 #pragma once
 
-#include <bits/types/struct_timeval.h>
 #include <cstdint>
 #include <optional>
-#include <sys/socket.h>
 #include <sys/types.h>
 #include <utility>
 #include <vector>
@@ -18,6 +16,12 @@ struct SourceInfo;
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
  * -> Opens a blocking TCP socket. Uses OS's port 0 to select a free port. 
+ * 
+ * Takes:
+ * -> is_server
+ *    A flag to indicate server socket.
+ * -> port
+ *    The port to open on, set to 0 if not specified.
  *
  * Returns:
  * -> On success:
@@ -26,7 +30,7 @@ struct SourceInfo;
  *    std::nullopt
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-std::optional<std::pair<int, uint16_t>> openSocket();
+std::optional<std::pair<int, uint16_t>> openSocket(bool is_server, uint16_t port);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -138,33 +142,26 @@ int sendMessage(int socket_fd, const std::vector<uint8_t>& data);
  * recvData
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Reads data on the socket into a buffer if it's present. Appends to the
- *    buffer rather than overwriting since it very well could take many calls of
- *    this function to recieve the entire message.
- *
+ * -> Reads data on the socket into a buffer if it's present. 
+ * 
  * Takes:
  * -> socket_fd:
  *    The socket to read the data from.
  * -> buffer:
  *    The container to append the read bytes to.
- * -> try_to_recv:
- *    How many bytes to attempt to read.
  * -> timeout:
  *    How long this function attempts to read try_to_recv bytes for before
  *    giving up. 
  *
  * Returns:
  * -> On success:
- *    The number of bytes read. May or may not be equal to try_to_recv.
+ *    The number of bytes read.
  * -> On failure:
  *    -1
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-ssize_t recvData(int                   socket_fd, 
-                 std::vector<uint8_t>& buffer, 
-                 size_t                try_to_recv, 
-                 timeval               timeout
-                );
-
+ssize_t recvMessage(int                   socket_fd, 
+                    std::vector<uint8_t>& buffer, 
+                    timeval               timeout);
 
 }
