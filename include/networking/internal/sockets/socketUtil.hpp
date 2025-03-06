@@ -12,7 +12,7 @@ struct SourceInfo;
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * size_tToBytes
+ * msgLenToBytes
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
  * -> Convert an integer into byte array. 
@@ -24,7 +24,7 @@ struct SourceInfo;
  *    The container to store the converted bytes to.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-void sizetToBytes(size_t val, uint8_t* buffer);
+void msgLenToBytes(const size_t val, uint8_t* buffer);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -42,7 +42,7 @@ void sizetToBytes(size_t val, uint8_t* buffer);
  *    The converted integer
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-size_t bytesToSizet(std::vector<uint8_t>& buffer);
+size_t bytesToMsgLen(const std::vector<uint8_t>& buffer);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

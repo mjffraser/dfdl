@@ -1,5 +1,6 @@
 #include "networking/socket.hpp"
 #include "networking/internal/sockets/socketUtil.hpp"
+#include "networking/internal/messageFormatting/byteOrdering.hpp"
 #include "sourceInfo.hpp"
 
 #include <bits/types/struct_timeval.h>
@@ -100,21 +101,21 @@ int accept(int server_fd, SourceInfo& client_info) {
 }
 
 int sendMessage(int socket_fd, const std::vector<uint8_t>& data) {
-    size_t data_len = data.size();
+    uint64_t data_len = data.size();
     if (data_len == 0) {
         return EXIT_SUCCESS;
     }
 
-    uint8_t header[8];
-    sizetToBytes(data_len, header);
+    std::vector<uint8_t> header;
+    header.resize(sizeof(uint64_t));
+    msgLenToBytes(data_len, header.data());
 
     size_t total_sent = 0;
     while (total_sent < data_len) {
-
         if (total_sent == 0) {
             size_t total_header_sent = 0;
             while (total_header_sent < 8) {
-                ssize_t header_sent = send(socket_fd, header + total_header_sent, 8 - total_header_sent, 0);
+                ssize_t header_sent = send(socket_fd, header.data()+total_header_sent, 8-total_header_sent, 0);
                 if (header_sent < 0) {
                     return EXIT_FAILURE;
                 }
@@ -139,7 +140,7 @@ ssize_t recvMessage(int                   socket_fd,
     if (header_read != 8) {
         return -1;
     }
-    size_t data_len = bytesToSizet(header);
+    uint64_t data_len = bytesToMsgLen(header);
 
     size_t total_recv = 0;
     while (total_recv < data_len) {

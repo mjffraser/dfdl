@@ -1,4 +1,5 @@
 #include "networking/internal/sockets/socketUtil.hpp"
+#include "networking/internal/messageFormatting/byteOrdering.hpp"
 
 #include <bits/types/struct_timeval.h>
 #include <cstring>
@@ -12,18 +13,17 @@
 
 namespace dfd{
 
-void sizetToBytes(size_t val, uint8_t* buffer) {
-    for (size_t i = 0; i < 8; ++i) {
-        buffer[i] = (val >> (i*8)) & 0xFF;
-    }
+void msgLenToBytes(const uint64_t len, uint8_t* buffer) {
+    int err_code;
+    uint64_t ordered = toNetworkOrder(len, err_code);
+    std::memcpy(buffer, &ordered, sizeof(uint64_t)); 
 }
 
-size_t bytesToSizet(std::vector<uint8_t>& buffer) {
-    size_t val;
-    for (size_t i = 0; i < 8; ++i) {
-        val = (val << 8) | buffer[7-i];
-    }
-    return val;
+uint64_t bytesToMsgLen(const std::vector<uint8_t>& buffer) {
+    int err_code;
+    uint64_t ordered;
+    std::memcpy(&ordered, buffer.data(), err_code);
+    return fromNetworkOrder(ordered, err_code);
 }
 
 ssize_t recvBytes(int                  socket_fd, 

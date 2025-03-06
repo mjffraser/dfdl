@@ -43,7 +43,6 @@ void createNetworkData(uint8_t* dest, const T data, size_t& offset, int& err_cod
         uint32_t network_data = getIpBytes(data); //inet_pton() was called to convert IP, so already in BE
         if (network_data == 0)
             err_code = 1;
-        std::cout << network_data << std::endl;
         std::memcpy(dest+offset, &network_data, sizeof(uint32_t));
         offset += sizeof(uint32_t);
     }  else {
