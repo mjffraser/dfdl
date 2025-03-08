@@ -97,8 +97,8 @@ public:
 private:
     // -- High-level Command Handlers (e.g., user typed "index <filename>")
     void handleIndex(const std::string& file_name);
-    void handleDownload(const std::string& file_name);
-    void handleRemove(const std::string& file_name);
+    void handleDownload(const uint64_t file_uuid);
+    // void handleRemove(const std::string& file_name);
     void printHelp();
 
     // -- Index Server Communication --
