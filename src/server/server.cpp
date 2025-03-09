@@ -212,7 +212,7 @@ void socketThread() {
 
 ///////main function
 //setup db -> start server and worker threads -> close up
-int main() {
+int mainServer() {
     //mutex lock db (may be unneeded in future)
     {
         std::lock_guard<std::mutex> lock(dbMutex);
