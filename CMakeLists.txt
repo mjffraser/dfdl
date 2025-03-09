@@ -16,6 +16,7 @@ set(LIB_SRC
 set(SERVER_SRC
     src/server/internal/database/db.cpp
     src/server/internal/database/internal/queries.cpp
+    src/server/server.cpp
 )
 
 #all networking & API src files
@@ -28,7 +29,6 @@ set(NETWORKING_SRC
     src/networking/socket.cpp
     src/networking/internal/sockets/socketUtil.cpp
 )
-
 
 set(ALL_SRC
     ${LIB_SRC}    

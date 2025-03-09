@@ -159,8 +159,7 @@ int Database::dropIndex(const uint64_t uuid, const SourceInfo& indexer) {
 }
 
 int Database::grabSources(const uint64_t&          uuid,
-                          std::vector<SourceInfo>& dest,
-                          uint64_t                 f_size) {
+                          std::vector<SourceInfo>& dest) {
     std::vector<Row> peers;
 
     //select on file uuid
