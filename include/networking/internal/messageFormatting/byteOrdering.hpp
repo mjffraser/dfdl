@@ -36,7 +36,7 @@ T toNetworkOrder(T host_data, int& err_flag) {
                    -1;
     if (ordered == -1)
         err_flag = 1;
-    return ordered; 
+    return ordered;
 }
 
 /*
@@ -59,7 +59,7 @@ T toNetworkOrder(T host_data, int& err_flag) {
  *    Return is undefined. err_flag will be set.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-template <typename T> 
+template <typename T>
 T fromNetworkOrder(T network_data, int& err_flag) {
     auto ordered = (sizeof(T) == sizeof(uint16_t)) ? be16toh(network_data) :
                    (sizeof(T) == sizeof(uint32_t)) ? be32toh(network_data) :
@@ -103,7 +103,7 @@ uint32_t getIpBytes(const std::string& ip_str);
  *    A pointer to the start of the byte sequence that was recieved. 4-bytes
  *    will be read from this point. It's up to the caller to make sure this is
  *    defined.
- * 
+ *
  * Returns:
  * -> On success:
  *    The string address.

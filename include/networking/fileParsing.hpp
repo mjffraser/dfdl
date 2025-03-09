@@ -18,7 +18,7 @@
  *    to the disk so others can be recieved async.
  * -> when you have chunk 0 unpacked, call openFile(), which will convert
  *    the first chunk to a file pointer that can be written to. this is NOT
- *    thread safe. one thread should be calling fileSize() periodically to check 
+ *    thread safe. one thread should be calling fileSize() periodically to check
  *    for file chunks.
  * -> with these chunks, call assembleChunk() to move the chunk data into the
  *    file.
@@ -27,7 +27,7 @@
  *
  * Sender:
  * -> Call fileSize() to get file size. Call fileChunks() for number of chunks
- *    to send. 
+ *    to send.
  * -> For chunks 0..n call packageFileChunk() to read them into memory to send.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
@@ -104,10 +104,10 @@ std::optional<size_t> fileChunks(const ssize_t f_size);
  * -> buff:
  *    The buffer to read the file into. Any data in the buffer prior to this
  *    will be overwritten. chunk_size bytes will be written here, unless it's
- *    the final chunk. It could be anything between 1 and chunk_size in that 
+ *    the final chunk. It could be anything between 1 and chunk_size in that
  *    case.
  * -> chunk_size:
- *    The size of file chunks. 
+ *    The size of file chunks.
  * -> chunk:
  *    Which chunk to read in. 0-indexed.
  *
@@ -118,8 +118,8 @@ std::optional<size_t> fileChunks(const ssize_t f_size);
  *    std::nullopt
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-std::optional<ssize_t> packageFileChunk(const std::filesystem::path& f_path, 
-                                              std::vector<uint8_t>&  buff, 
+std::optional<ssize_t> packageFileChunk(const std::filesystem::path& f_path,
+                                              std::vector<uint8_t>&  buff,
                                         const size_t                 chunk);
 
 /*
@@ -149,8 +149,8 @@ std::optional<ssize_t> packageFileChunk(const std::filesystem::path& f_path,
  *    EXIT_FAILURE
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int unpackFileChunk(const std::string&           f_name, 
-                    const std::vector<uint8_t>&  buff, 
+int unpackFileChunk(const std::string&           f_name,
+                    const std::vector<uint8_t>&  buff,
                     const size_t                 data_len,
                     const size_t                 chunk);
 
@@ -171,23 +171,23 @@ int unpackFileChunk(const std::string&           f_name,
  *
  * Returns:
  * -> On success:
- *    A pointer to the file. 
+ *    A pointer to the file.
  * -> On failure:
- *   nullptr 
+ *   nullptr
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 std::unique_ptr<std::ofstream> openFile(const std::string& f_name);
 
-/* 
+/*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * assembleChunk
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Appends a chunk to the file. 
+ * -> Appends a chunk to the file.
  *
  * Takes:
  * -> file:
- *    The file to write the chunk to. 
+ *    The file to write the chunk to.
  * -> chunk:
  *    The size of the entire file.
  *
@@ -198,7 +198,7 @@ std::unique_ptr<std::ofstream> openFile(const std::string& f_name);
  *    EXIT_FAILURE
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int assembleChunk(      std::ofstream* file, 
+int assembleChunk(      std::ofstream* file,
                   const std::string&                    f_name,
                   const size_t                          chunk);
 
@@ -208,7 +208,7 @@ int assembleChunk(      std::ofstream* file,
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
  * -> Calls close on file, and releases ownership. Should only be called once
- *    all chunks have been written to the file with assembleChunk. 
+ *    all chunks have been written to the file with assembleChunk.
  *
  * Takes:
  * -> file:
@@ -221,12 +221,12 @@ int assembleChunk(      std::ofstream* file,
  */
 int saveFile(std::unique_ptr<std::ofstream> file);
 
-/* 
+/*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * sha256Hash
+ * sha512Hash
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Computes the SHA256 hash of a file on the disk. If the file DNE, or on any
+ * -> Computes the SHA512 hash of a file on the disk. If the file DNE, or on any
  *    other error (perms, etc.) 0 is returned. Truncates the first 8-bytes to
  *    return.
  *
@@ -241,6 +241,6 @@ int saveFile(std::unique_ptr<std::ofstream> file);
  *    0
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-uint64_t sha256Hash(const std::filesystem::path& f_path);
+uint64_t sha512Hash(const std::filesystem::path& f_path);
 
 }
