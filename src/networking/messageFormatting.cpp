@@ -73,13 +73,13 @@ std::vector<uint8_t> createIndexRequest(FileId& file_info) {
     return index_buff;
 }
 
-//endian-safe casting via fromNetworkOrder template function in byteOrdering.hpp 
+//endian-safe casting via fromNetworkOrder template function in byteOrdering.hpp
 //if a std::string is passed as destination it's assumed to be an IPv4 addr,
 //and inet parsing functions are used instead.
 template <typename T>
 void parseNetworkData(T* dest, const uint8_t* buff, size_t& offset, int& err_code) {
     if constexpr (std::is_same_v<T, std::string>) {
-        std::string ip_str = ipBytesToString(buff+offset); 
+        std::string ip_str = ipBytesToString(buff+offset);
         if (ip_str == "")
             err_code = 1;
         *dest = ip_str;
@@ -93,7 +93,7 @@ void parseNetworkData(T* dest, const uint8_t* buff, size_t& offset, int& err_cod
 }
 
 FileId parseIndexRequest(const std::vector<uint8_t>& index_message) {
-    FileId f_id(0, SourceInfo(), 0); 
+    FileId f_id(0, SourceInfo(), 0);
     if (index_message.size() != 31) {
         return f_id;
     } else if (*index_message.begin() != INDEX_REQUEST) {
@@ -133,7 +133,7 @@ std::vector<uint8_t> createDropRequest(IndexUuidPair& uuids) {
 
     if (err_code != 0)
         return {};
-    
+
     return drop_buff;
 }
 
@@ -143,7 +143,7 @@ IndexUuidPair parseDropRequest(const std::vector<uint8_t>& drop_message) {
         return pair;
     else if (*drop_message.begin() != DROP_REQUEST)
         return pair;
-    
+
     size_t offset = 1;
     int err_code  = 0;
 
@@ -158,7 +158,7 @@ IndexUuidPair parseDropRequest(const std::vector<uint8_t>& drop_message) {
 }
 
 std::vector<uint8_t> createReregisterRequest(const SourceInfo& indexer) {
-    std::vector<uint8_t> reregister_buff = {REREGISTER_REQUEST};  
+    std::vector<uint8_t> reregister_buff = {REREGISTER_REQUEST};
     reregister_buff.resize(1+14); //SourceInfo is 14 bytes
 
     size_t offset = 1;
@@ -185,7 +185,7 @@ SourceInfo parseReregisterRequest(const std::vector<uint8_t>& reregister_message
 
     size_t offset = 1;
     int err_code  = 0;
-    
+
     //pull stuff out in the same order as it was inserted by createReregisterRequest
     parseNetworkData(&si.port,    reregister_message.data(), offset, err_code);
     parseNetworkData(&si.peer_id, reregister_message.data(), offset, err_code);
@@ -223,7 +223,7 @@ uint64_t parseSourceRequest(const std::vector<uint8_t>& request_message) {
     size_t offset = 1;
     int err_code  = 0;
     uint64_t uuid;
-    
+
     //pull stuff out in the same order as it was inserted by createSourceRequest
     parseNetworkData(&uuid, request_message.data(), offset, err_code);
 
@@ -234,19 +234,19 @@ uint64_t parseSourceRequest(const std::vector<uint8_t>& request_message) {
 }
 
 std::vector<uint8_t> createSourceList(const std::vector<SourceInfo>& source_list) {
-    std::vector<uint8_t> list_buffer = {SOURCE_LIST}; 
+    std::vector<uint8_t> list_buffer = {SOURCE_LIST};
     list_buffer.resize(1+(14*source_list.size())); //port: 2bytes, uuid: 8, ip: 4
-    
+
     size_t offset = 1;
     int err_code  = 0;
 
     //ORDER:
-    //port then client uuid then ip_addr, for every source 
+    //port then client uuid then ip_addr, for every source
     for (auto& s : source_list) {
         createNetworkData(list_buffer.data(), s.port,    offset, err_code);
         createNetworkData(list_buffer.data(), s.peer_id, offset, err_code);
         createNetworkData(list_buffer.data(), s.ip_addr, offset, err_code);
-    } 
+    }
 
     if (err_code != 0)
         return {};
@@ -255,7 +255,7 @@ std::vector<uint8_t> createSourceList(const std::vector<SourceInfo>& source_list
 }
 
 std::vector<SourceInfo> parseSourceList(std::vector<uint8_t> list_message) {
-    if (((list_message.size()-1) % 14) != 0) 
+    if (((list_message.size()-1) % 14) != 0)
         return {};
     else if (*list_message.begin() != SOURCE_LIST)
         return {};
@@ -275,7 +275,7 @@ std::vector<SourceInfo> parseSourceList(std::vector<uint8_t> list_message) {
 
     if (err_code != 0)
         return {};
-    
+
     return sources;
 }
 
@@ -286,7 +286,7 @@ std::vector<uint8_t> createDownloadInit(const uint64_t uuid, std::optional<size_
     init_buffer.resize(1+16);
     uint64_t c_size = 0;
     if (chunk_size)
-        c_size = chunk_size.value(); 
+        c_size = chunk_size.value();
 
     size_t offset = 1;
     int err_code  = 0;
@@ -378,7 +378,7 @@ std::vector<uint8_t> createDataChunk(const DataChunk& chunk) {
 
     if (err_code != 0)
         return {};
-    
+
     return data_buff;
 }
 

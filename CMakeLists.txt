@@ -9,7 +9,7 @@ find_package(OpenSSL REQUIRED)
 
 #header-only libs
 set(LIB_SRC
-    lib/sqlite/sqlite3.c     
+    lib/sqlite/sqlite3.c
 )
 
 #all server src files
@@ -30,16 +30,21 @@ set(NETWORKING_SRC
     src/networking/internal/sockets/socketUtil.cpp
 )
 
+set(CLIENT_SRC
+    src/client/client.cpp
+)
+
 set(ALL_SRC
-    ${LIB_SRC}    
+    ${LIB_SRC}
     ${SERVER_SRC}
     ${NETWORKING_SRC}
+    ${CLIENT_SRC}
     src/main.cpp
 )
 
 add_executable(dfdl ${ALL_SRC})
-target_include_directories(dfdl PRIVATE 
-                           ${CMAKE_CURRENT_SOURCE_DIR}/include 
+target_include_directories(dfdl PRIVATE
+                           ${CMAKE_CURRENT_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}/lib/sqlite
                           )
 target_link_libraries(dfdl PRIVATE OpenSSL::SSL)
