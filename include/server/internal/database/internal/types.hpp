@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -11,7 +11,7 @@ namespace dfd {
 using Row = std::vector<std::string>;
 
 //Primary key for a table
-using TableKey = std::pair<std::string,  //KEY_NAME 
+using TableKey = std::pair<std::string,  //KEY_NAME
                            std::string>; //KEY_TYPE
 
 //Foreign key for a table
@@ -19,8 +19,8 @@ using ForeignKey = std::tuple<std::string,  //KEY_NAME
                               std::string,  //KEY_TYPE
                               std::string>; //REF_KEY
 
-using AttributeValuePair = std::pair<std::string,                //attribute name      
-                                     std::variant<uint64_t,      //possible type (sha256 hashes, file sizes)
+using AttributeValuePair = std::pair<std::string,                //attribute name
+                                     std::variant<uint64_t,      //possible type (512 hashes, file sizes)
                                                   uint16_t,      //possible type (port #)
                                                   std::string>>; //possible type (names, etc.)
 } //dfd
