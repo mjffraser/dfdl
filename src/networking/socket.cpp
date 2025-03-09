@@ -6,6 +6,8 @@
 #include <bits/types/struct_timeval.h>
 #include <cstring>
 #include <cstdint>
+#include <iostream>
+#include <ostream>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <vector>
@@ -31,6 +33,7 @@ std::optional<std::pair<int, uint16_t>> openSocket(bool is_server, uint16_t port
         localAddr.sin_addr.s_addr   = INADDR_ANY;   // OS assign ip 
     
         if (bind(socket_fd, (struct sockaddr*)&localAddr, sizeof(localAddr)) < 0) {
+            std::cout << "COULD NOT BIND" << std::endl;
             close(socket_fd);
             return std::nullopt;
         }
@@ -106,29 +109,17 @@ int sendMessage(int socket_fd, const std::vector<uint8_t>& data) {
         return EXIT_SUCCESS;
     }
 
-    std::vector<uint8_t> header;
-    header.resize(sizeof(uint64_t));
-    msgLenToBytes(data_len, header.data());
+    std::vector<uint8_t> data_msg;
+    data_msg.resize(8+data.size());
+    msgLenToBytes(data_len, data_msg.data());
 
-    size_t total_sent = 0;
-    while (total_sent < data_len) {
-        if (total_sent == 0) {
-            size_t total_header_sent = 0;
-            while (total_header_sent < 8) {
-                ssize_t header_sent = send(socket_fd, header.data()+total_header_sent, 8-total_header_sent, 0);
-                if (header_sent < 0) {
-                    return EXIT_FAILURE;
-                }
-                total_header_sent += header_sent;
-            }
-        }
-        ssize_t bytes_sent = send(socket_fd, data.data() + total_sent, 
-                                 data_len - total_sent, 0);
-        if (bytes_sent < 0) {
-            return EXIT_FAILURE;
-        }
-        total_sent += bytes_sent;
+    std::memcpy(data_msg.data()+8, data.data(), data.size());
+    size_t sent = 0;
+    while (sent < data_msg.size()) {
+        ssize_t bytes_sent = send(socket_fd, data_msg.data()+sent, data_msg.size()-sent, 0);
+        sent += bytes_sent;
     }
+
     return EXIT_SUCCESS;
 }
 
@@ -138,8 +129,10 @@ ssize_t recvMessage(int                   socket_fd,
     std::vector<uint8_t> header;
     ssize_t header_read = recvBytes(socket_fd, header, 8, timeout);
     if (header_read != 8) {
+        std::cout << "Not reading 8 header bytes." << std::endl;
         return -1;
     }
+
     uint64_t data_len = bytesToMsgLen(header);
 
     size_t total_recv = 0;

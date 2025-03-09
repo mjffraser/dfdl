@@ -54,7 +54,7 @@ void createNetworkData(uint8_t* dest, const T data, size_t& offset, int& err_cod
 
 std::vector<uint8_t> createIndexRequest(FileId& file_info) {
     uint32_t ip_bytes = getIpBytes(file_info.indexer.ip_addr);
-    if (ip_bytes == 0)
+    if (ip_bytes == 0) 
         return {};
 
     std::vector<uint8_t> index_buff = {INDEX_REQUEST};
@@ -69,6 +69,7 @@ std::vector<uint8_t> createIndexRequest(FileId& file_info) {
     createNetworkData(index_buff.data(), file_info.indexer.port,    offset, err_code);
     createNetworkData(index_buff.data(), file_info.indexer.peer_id, offset, err_code);
     createNetworkData(index_buff.data(), file_info.indexer.ip_addr, offset, err_code);
+
 
     return index_buff;
 }

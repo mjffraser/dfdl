@@ -241,7 +241,7 @@ union DigestMap {
     uint8_t  digest[8];
 };
 
-uint64_t sha512Hash(const std::filesystem::path& f_path) {
+uint64_t sha256Hash(const std::filesystem::path& f_path) {
     auto f_size = fileSize(f_path);     
     if (!f_size)
         return 0;
