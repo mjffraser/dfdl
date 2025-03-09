@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <sys/socket.h>
+// #include <winsock2.h> //ONLY FOR WINDOWS
 
 namespace dfd {
 
