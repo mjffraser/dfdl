@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <optional>
 
+#include <signal.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -28,6 +29,18 @@
 namespace dfd
 {
 
+static P2PClient* g_client_ptr = nullptr;
+
+static void signalHandler(int signum) {
+    if (signum == 2) {
+        std::cout << "\nReceived Ctrl+C signal. Cleaning up and exiting...\n";
+        if (g_client_ptr) {
+            g_client_ptr->handleSignal();
+            exit(0);
+        }
+    }
+}
+
 //------------------------------------------------------------------------------
 // Constructor
 //------------------------------------------------------------------------------
@@ -38,14 +51,22 @@ P2PClient::P2PClient(const std::string& server_ip, int server_port, const uint64
 {
     server_info.ip_addr = server_ip;
     server_info.port    = server_port;
+
+    g_client_ptr = this;
+    signal(2, signalHandler); // SIGINT
 }
 
 //------------------------------------------------------------------------------
 // Destructor
 //------------------------------------------------------------------------------
 P2PClient::~P2PClient() {
+    removeAllFiles();
     stopAllSharing();
     am_running = false;
+}
+
+void P2PClient::setRunning(bool running) {
+    am_running = running;
 }
 
 //------------------------------------------------------------------------------
@@ -88,6 +109,12 @@ void P2PClient::run() {
             std::cout << "Unknown command. Type 'help' for usage.\n";
         }
     }
+}
+
+void P2PClient::handleSignal() {
+    stopAllSharing();
+    removeAllFiles();
+    am_running = false;
 }
 
 int connectToServer(const SourceInfo connect_to) {
@@ -135,7 +162,7 @@ bool sendOkay(int sock, const std::vector<uint8_t>& message, const std::string& 
             std::cerr << err_msg << std::endl;
         closeSocket(sock);
         return false;
-    } 
+    }
 
     return true;
 }
@@ -156,7 +183,7 @@ bool checkCode(int sock, const std::vector<uint8_t> buffer, const uint8_t code, 
         if (buffer[0] == FAIL) {
             if (do_err) std::cerr << "ERROR: " << parseFailMessage(buffer) << std::endl;
         } else {
-            if (do_err) std::cerr << "Server supplied rouge data." << std::endl; 
+            if (do_err) std::cerr << "Server supplied rouge data." << std::endl;
         }
         closeSocket(sock);
         return false;
@@ -243,13 +270,13 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
         return;
     }
 
-    int client_socket_fd = connectToServer(peers[0]); 
-    std::vector<uint8_t> request = createDownloadInit(file_uuid, std::nullopt); 
-    if (!sendOkay(client_socket_fd, request, "Failed to send download request.")) 
+    int client_socket_fd = connectToServer(peers[0]);
+    std::vector<uint8_t> request = createDownloadInit(file_uuid, std::nullopt);
+    if (!sendOkay(client_socket_fd, request, "Failed to send download request."))
         return;
 
     std::vector<uint8_t> request_ack;
-    if (!recvOkay(client_socket_fd, request_ack, "No response from client.")) 
+    if (!recvOkay(client_socket_fd, request_ack, "No response from client."))
         return;
 
     if (!checkCode(client_socket_fd, request_ack, DOWNLOAD_CONFIRM, true))
@@ -355,7 +382,7 @@ void P2PClient::handleDrop(const std::string& file_name) {
     }
 
     closeSocket(client_socket_fd);
-    std::cout << "Dropped " << file_name << std::endl;     
+    std::cout << "Dropped " << file_name << std::endl;
 }
 
 //------------------------------------------------------------------------------
@@ -386,7 +413,7 @@ std::vector<SourceInfo> P2PClient::findFilePeers(uint64_t file_id) {
 
     //recieve the list, possibly empty.
     std::vector<uint8_t> peers;
-    if (!recvOkay(client_socket_fd, peers, "Failed when recieving peer list.")) 
+    if (!recvOkay(client_socket_fd, peers, "Failed when recieving peer list."))
         return {};
 
     //check we got the correct response
@@ -554,6 +581,52 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
     }
 
     closeSocket(client_socket_fd);
+}
+
+//------------------------------------------------------------------------------
+// Private: remove all files from the server
+//------------------------------------------------------------------------------
+void P2PClient::removeAllFiles() {
+    std::vector<uint64_t> file_ids;
+
+    {
+        std::lock_guard<std::mutex> lock(share_mutex_);
+        for (const auto& kv : shared_files_) {
+            file_ids.push_back(kv.first);
+        }
+    }
+
+    if (file_ids.empty()) {
+        return;
+    }
+
+    std::cout << "Removing all shared files from server...\n";
+
+    for (const auto& file_id : file_ids) {
+        IndexUuidPair id_pair(file_id, my_uuid);
+        std::vector<uint8_t> drop_buff = createDropRequest(id_pair);
+
+        int client_socket_fd = connectToServer(server_info);
+        if (client_socket_fd < 0) {
+            continue;
+        }
+
+        if (!sendOkay(client_socket_fd, drop_buff, "")) {
+            continue;
+        }
+
+        std::vector<uint8_t> response_buff;
+        if (!recvOkay(client_socket_fd, response_buff, "")) {
+            continue;
+        }
+
+        closeSocket(client_socket_fd);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(share_mutex_);
+        shared_files_.clear();
+    }
 }
 
 //------------------------------------------------------------------------------

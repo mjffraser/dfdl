@@ -94,6 +94,8 @@ public:
      */
     void run();
 
+    void handleSignal();
+
 private:
     // -- High-level Command Handlers (e.g., user typed "index <filename>")
     void handleIndex(const std::string& file_name);
@@ -150,6 +152,15 @@ private:
      * -> Empty on error or if no peers found (the server might also send FAIL).
      */
     std::vector<SourceInfo> findFilePeers(uint64_t file_id);
+
+    /*
+     * removeAllFiles
+     * Description: Removes all currently shared files from the server.
+     *              Called during shutdown to ensure clean client exit.
+     */
+    void removeAllFiles();
+
+    void setRunning(bool running);
 
     // -- Listening for P2P requests --
     /*
@@ -244,7 +255,7 @@ private:
 
 private:
     uint64_t    my_uuid;
-    SourceInfo  server_info; 
+    SourceInfo  server_info;
     bool        am_running;
 
     // For each file we share: file_id -> local filename
