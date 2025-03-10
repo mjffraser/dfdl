@@ -3,6 +3,7 @@
 #include "sourceInfo.hpp"
 #include <cstdint>
 #include <vector>
+#include <optional>
 
 namespace dfd {
 
@@ -317,7 +318,7 @@ std::vector<SourceInfo> parseSourceList(std::vector<uint8_t> list_message);
 
 //CLIENT MESSAGE CODES AND FUNCTIONS
 inline constexpr uint8_t DOWNLOAD_INIT      = 0x05;
-inline constexpr uint8_t DOWNLOAD_OK        = 0xF5;
+inline constexpr uint8_t DOWNLOAD_CONFIRM   = 0xF5;
 inline constexpr uint8_t REQUEST_CHUNK      = 0x06;
 inline constexpr uint8_t DATA_CHUNK         = 0xF6;
 inline constexpr uint8_t FINISH_DOWNLOAD    = 0x07; //simple ack, just send byte
@@ -369,6 +370,51 @@ std::vector<uint8_t> createDownloadInit(const uint64_t uuid, std::optional<size_
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 */
 std::pair<uint64_t, std::optional<size_t>> parseDownloadInit(const std::vector<uint8_t> init_message);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * createDownloadConfirm
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Creates a buffer for communicating a file size and name to the client
+ *    before it attempts downloading.
+ * Takes:
+ * -> f_size:
+ *    The file size.
+ * -> f_name:
+ *    The file name.
+ *
+ * Returns:
+ * -> On success:
+ *    The buffer. 
+ * -> On failure:
+ *    An empty buffer. 
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+*/
+std::vector<uint8_t> createDownloadConfirm(const uint64_t f_size, const std::string& f_name);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * parseDownloadConfirm 
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Unpacks the above message, and returns the recieved pair of file_size, and
+ *    file name, in that order.
+ *
+ * Takes:
+ * -> confirm_message:
+ *    A message recieved who's std::vector::front references the DOWNLOAD_INIT 
+ *    code.
+ *
+ * Returns:
+ * -> On success:
+ *    The pair. 
+ * -> On failure:
+ *    A pair with uuid set to 0. 
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+*/
+std::pair<uint64_t, std::string> parseDownloadConfirm(const std::vector<uint8_t> confirm_message);
+
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

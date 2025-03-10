@@ -327,6 +327,42 @@ std::pair<uint64_t, std::optional<size_t>> parseDownloadInit(const std::vector<u
     return pair;
 }
 
+std::vector<uint8_t> createDownloadConfirm(const uint64_t f_size, const std::string& f_name) {
+    std::vector<uint8_t> confirm_buffer = {DOWNLOAD_CONFIRM};
+    confirm_buffer.resize(1+8+f_name.size());
+    
+    size_t offset = 1;
+    int err_code  = 0;
+
+    //ORDER:
+    //file size
+    createNetworkData(confirm_buffer.data(), f_size, offset, err_code);
+    std::memcpy(confirm_buffer.data()+offset, f_name.c_str(), f_name.size());
+
+    if (err_code != 0)
+        return {};
+
+    return confirm_buffer;
+}
+
+std::pair<uint64_t, std::string> parseDownloadConfirm(const std::vector<uint8_t> confirm_message) {
+    if (*confirm_message.begin() != DOWNLOAD_CONFIRM)
+        return {};
+
+    size_t offset = 1;
+    int err_code  = 0;
+    std::pair<uint64_t, std::string> file_info;
+
+    parseNetworkData(&file_info.first, confirm_message.data(), offset, err_code);
+    std::string f_name(confirm_message.begin()+offset, confirm_message.end());
+    file_info.second = f_name;
+
+    if (err_code != 0)
+        return {0, ""};
+
+    return file_info;
+}
+
 std::vector<uint8_t> createChunkRequest(const size_t chunk) {
     std::vector<uint8_t> chunk_buff = {REQUEST_CHUNK};
     chunk_buff.resize(1+8);

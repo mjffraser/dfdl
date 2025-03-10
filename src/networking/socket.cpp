@@ -143,6 +143,8 @@ ssize_t recvMessage(int                   socket_fd,
         }
         total_recv += bytes_read;
     }
+
+    buffer.resize(total_recv);
     return total_recv;
 }
 
