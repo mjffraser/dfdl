@@ -71,8 +71,13 @@ void P2PClient::run() {
             handleIndex(file_name);
         } else if (command.rfind("download ", 0) == 0) {
             // e.g. "download <file uuid>"
-            uint64_t file_uuid = std::stoull(command.substr(9));
-            handleDownload(file_uuid);
+            std::string uuid_str = command.substr(9);
+            try {
+                uint64_t file_uuid = std::stoull(uuid_str);
+                handleDownload(file_uuid);
+            } catch (const std::exception& e) {
+                std::cerr << "Invalid file UUID format. Please provide a valid numeric ID.\n";
+            }
         } else if (command.rfind("drop ", 0) == 0) {
             // e.g. "remove <file uuid>"
             std::string file_name = command.substr(5);
