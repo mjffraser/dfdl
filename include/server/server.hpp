@@ -32,6 +32,6 @@ extern std::atomic<bool> serverRunning;
 void handleConnectionThread(int client_fd);
 void workerThread();
 void socketThread();
-int mainServer();
+int mainServer(const uint16_t port);
 
 } //namespace dfd
