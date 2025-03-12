@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <sys/socket.h>
 // #include <winsock2.h> //ONLY FOR WINDOWS
@@ -27,26 +26,5 @@ struct SourceInfo {
     std::string ip_addr;
     uint16_t    port;
 };
-
-/*
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * socketAddrToSourceInfo
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * Description:
- * -> Takes information about an opened socket and extracts relevant info so the
- *    sockaddr struct can be safely destroyed.
- *
- * Takes:
- * -> info:
- *    A sockaddr struct populated by the accept() function in socket.hpp
- *
- * Returns:
- * -> On success:
- *    SourceInfo struct.
- * -> On failure:
- *    std::nullopt
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- */
-std::optional<SourceInfo> socketAddrToSourceInfo(sockaddr*& info);
 
 }

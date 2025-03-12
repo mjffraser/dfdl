@@ -22,7 +22,7 @@ void msgLenToBytes(const uint64_t len, uint8_t* buffer) {
 uint64_t bytesToMsgLen(const std::vector<uint8_t>& buffer) {
     int err_code;
     uint64_t ordered;
-    std::memcpy(&ordered, buffer.data(), err_code);
+    std::memcpy(&ordered, buffer.data(), sizeof(ordered));
     return fromNetworkOrder(ordered, err_code);
 }
 
@@ -38,15 +38,16 @@ ssize_t recvBytes(int                  socket_fd,
     fd_set read_fds;
     FD_ZERO(&read_fds);
     FD_SET(socket_fd, &read_fds);
-    int ret = select(socket_fd + 1, &read_fds, NULL, NULL, &timeout);
-    if (ret <= 0) {
+    // int ret = select(socket_fd + 1, &read_fds, NULL, NULL, &timeout);
+    int ret = setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    if (ret < 0) {
         return -1;
     }
 
     size_t original_len = buffer.size();
     buffer.resize(original_len + try_to_recv);
 
-    ssize_t bytes_read = recv(socket_fd, &buffer[original_len], try_to_recv, 0);
+    ssize_t bytes_read = recv(socket_fd, buffer.data()+original_len, try_to_recv, 0);
 
     if (bytes_read > 0) {
         buffer.resize(original_len + bytes_read);

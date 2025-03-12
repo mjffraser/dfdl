@@ -47,7 +47,9 @@ std::atomic<bool> serverRunning(true);
 //these threads are spawned on each accepted connection and handle said connection
 void handleConnectionThread(int client_fd) {
     //2.5 sec time out (changable in future) timeval is a structure explained here to set to differing times: http://www.ccplusplus.com/2011/09/struct-timeval-in-c.html (website is unsecure btw)
-    timeval timeout = {2, 500000};
+    struct timeval timeout;
+    timeout.tv_sec  = 5;
+    timeout.tv_usec = 0;
     //buffer
     std::vector<uint8_t> buffer;
 
@@ -85,13 +87,15 @@ void workerThread() {
             //check if shutdown case broke the wait (aka server ! running) and break
             if (!serverRunning) {
                 break;
-            }else{
+            } else {
                 //store job in from job Q
                 job = jobQ.front();
                 //remove job in from job Q
                 jobQ.pop();
             }
         }
+
+
         /////////////////////MESSAGE HANDELLING/////////////////
         //get the message to handle
         std::vector<uint8_t> initial = job.message;
@@ -106,13 +110,13 @@ void workerThread() {
                 //temp to hold exit code
                 auto tempHold = db->indexFile(fileID.uuid, fileID.indexer, fileID.f_size);
                 //check if operation had an EXIT_FAILURE and if not make responce the proper OK
-                if (tempHold == EXIT_FAILURE){
+                if (tempHold == EXIT_FAILURE) {
                     response = createFailMessage(db->sqliteError());
-                }else{
+                } else {
                     response.push_back(INDEX_OK);
                 }
        
-            }else if(decisionByte == DROP_REQUEST){
+            } else if (decisionByte == DROP_REQUEST){
                 auto uidPair = parseDropRequest(initial);
                 //fit the secound thing in pair into the structure
                 SourceInfo structForDropIndex; 
@@ -127,7 +131,7 @@ void workerThread() {
                     response.push_back(DROP_OK);
                 }
        
-            }else if(decisionByte == REREGISTER_REQUEST){
+            } else if (decisionByte == REREGISTER_REQUEST){
                 auto sourceInfo = parseReregisterRequest(initial);
                 //temp to hold exit code
                 auto tempHold = db->updateClient(sourceInfo);
@@ -138,7 +142,7 @@ void workerThread() {
                     response.push_back(REREGISTER_OK);
                 }
 
-            }else if(decisionByte == SOURCE_REQUEST){
+            } else if (decisionByte == SOURCE_REQUEST){
                 auto fileUuid = parseSourceRequest(initial);
                 std::vector<dfd::SourceInfo> buffer; 
                 //temp to hold exit code
@@ -150,15 +154,12 @@ void workerThread() {
                     response = createSourceList(buffer);
                 }
 
-            }else{
+            } else {
                 //should never happen in standard run
                 response = createFailMessage("invalid message sent");
             }
-
-            //fake doing DB stuf
-            std::cout << "did db stuff for:" << job.cfd << "\n";
         }
-        //send responce to client (responce is wrong meessage handelling will implement)
+        //send responce to client (response is wrong meessage handling will implement)
         sendMessage(job.cfd, response);
 
         //close the jobs socket (with client file directory)
@@ -167,9 +168,8 @@ void workerThread() {
 }
 
 //main server front end that loks for connections and handles proccess
-void socketThread() {
-    //open server port on port 8080 [the datatype is weird use socket->secound for port # and socket->first for file descriptor]
-    auto socket = openSocket(true, 7070);
+void socketThread(const uint16_t port) {
+    auto socket = openSocket(true, port);
     if (!socket) {
         //handle fail to open
         std::cerr << "no socket for socket thread";
@@ -178,11 +178,11 @@ void socketThread() {
 
     //server file descriptor
     int sfd = socket->first;
-    std::cout << "listening on port" << socket->second << "\n\n";
+    std::cout << "listening on port " << socket->second << "\n\n";
 
     //start listening with backlog of 10 (number is unimportant)
     if (listen(sfd, 10) == EXIT_FAILURE) {
-        std::cerr << "listen failed, slocing socket\n";
+        std::cerr << "listen failed\n";
         closeSocket(sfd);
         return;
     }
@@ -195,8 +195,8 @@ void socketThread() {
         
         if (cfd < 0) {
             std::cerr << "client unables to be accepted\n";
-        }else{
-            std::cout << "accepted client: " << clientInfo.ip_addr << ":" << clientInfo.port << "\n";
+        } else {
+            std::cout << "served client: " << clientInfo.ip_addr << ":" << clientInfo.port << "\n";
             //spawn a thread that handles the connection
             //keep in mind detached threads can be bad we may want a threadpool
             std::thread(handleConnectionThread, cfd).detach();
@@ -212,7 +212,7 @@ void socketThread() {
 
 ///////main function
 //setup db -> start server and worker threads -> close up
-int mainServer() {
+int mainServer(const uint16_t port) {
     //mutex lock db (may be unneeded in future)
     {
         std::lock_guard<std::mutex> lock(dbMutex);
@@ -223,7 +223,7 @@ int mainServer() {
     std::cout << "DB setup complete\n";
 
     //start the socket thread (will spawn handleConnectionThreads on each connection)
-    std::thread socketT(socketThread);
+    std::thread socketT(socketThread, port);
     //vector of threads containing our workers
     std::vector<std::thread> workers;
     
@@ -234,9 +234,9 @@ int mainServer() {
     }
 
     ///////////CLEANUP///////////
-    std::cout << "cleanup start\n";
     //wait for socket thread to finish and join it
     socketT.join();
+    std::cout << "cleanup start\n";
     //signal workers to be done
     serverRunning = false;
     //notify every worker (since server running is ! this will break them all out of loop)

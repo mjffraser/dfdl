@@ -54,7 +54,7 @@ void createNetworkData(uint8_t* dest, const T data, size_t& offset, int& err_cod
 
 std::vector<uint8_t> createIndexRequest(FileId& file_info) {
     uint32_t ip_bytes = getIpBytes(file_info.indexer.ip_addr);
-    if (ip_bytes == 0)
+    if (ip_bytes == 0) 
         return {};
 
     std::vector<uint8_t> index_buff = {INDEX_REQUEST};
@@ -69,6 +69,7 @@ std::vector<uint8_t> createIndexRequest(FileId& file_info) {
     createNetworkData(index_buff.data(), file_info.indexer.port,    offset, err_code);
     createNetworkData(index_buff.data(), file_info.indexer.peer_id, offset, err_code);
     createNetworkData(index_buff.data(), file_info.indexer.ip_addr, offset, err_code);
+
 
     return index_buff;
 }
@@ -324,6 +325,42 @@ std::pair<uint64_t, std::optional<size_t>> parseDownloadInit(const std::vector<u
         pair.second = c_size;
 
     return pair;
+}
+
+std::vector<uint8_t> createDownloadConfirm(const uint64_t f_size, const std::string& f_name) {
+    std::vector<uint8_t> confirm_buffer = {DOWNLOAD_CONFIRM};
+    confirm_buffer.resize(1+8+f_name.size());
+    
+    size_t offset = 1;
+    int err_code  = 0;
+
+    //ORDER:
+    //file size
+    createNetworkData(confirm_buffer.data(), f_size, offset, err_code);
+    std::memcpy(confirm_buffer.data()+offset, f_name.c_str(), f_name.size());
+
+    if (err_code != 0)
+        return {};
+
+    return confirm_buffer;
+}
+
+std::pair<uint64_t, std::string> parseDownloadConfirm(const std::vector<uint8_t> confirm_message) {
+    if (*confirm_message.begin() != DOWNLOAD_CONFIRM)
+        return {};
+
+    size_t offset = 1;
+    int err_code  = 0;
+    std::pair<uint64_t, std::string> file_info;
+
+    parseNetworkData(&file_info.first, confirm_message.data(), offset, err_code);
+    std::string f_name(confirm_message.begin()+offset, confirm_message.end());
+    file_info.second = f_name;
+
+    if (err_code != 0)
+        return {0, ""};
+
+    return file_info;
 }
 
 std::vector<uint8_t> createChunkRequest(const size_t chunk) {

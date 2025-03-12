@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <optional>
 
+#include <signal.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -28,37 +29,55 @@
 namespace dfd
 {
 
+static P2PClient* g_client_ptr = nullptr;
+
+static void signalHandler(int signum) {
+    if (signum == 2) {
+        std::cout << "\nReceived Ctrl+C signal. Cleaning up and exiting...\n";
+        if (g_client_ptr) {
+            g_client_ptr->handleSignal();
+            exit(0);
+        }
+    }
+}
+
 //------------------------------------------------------------------------------
 // Constructor
 //------------------------------------------------------------------------------
-P2PClient::P2PClient(const std::string& server_ip, int server_port)
-  : server_ip_(server_ip),
-    server_port_(server_port),
-    is_running_(true),
-    listen_sock_(-1)
+P2PClient::P2PClient(const std::string& server_ip, int server_port, const uint64_t id)
+  : am_running(true),
+    my_uuid(id),
+    my_listen_sock(-1)
 {
-    // We could attempt a test connection to the server here or do a lazy connect
+    server_info.ip_addr = server_ip;
+    server_info.port    = server_port;
+
+    g_client_ptr = this;
+    signal(2, signalHandler); // SIGINT
 }
 
 //------------------------------------------------------------------------------
 // Destructor
 //------------------------------------------------------------------------------
-P2PClient::~P2PClient()
-{
+P2PClient::~P2PClient() {
+    removeAllFiles();
     stopAllSharing();
-    is_running_ = false;
+    am_running = false;
+}
+
+void P2PClient::setRunning(bool running) {
+    am_running = running;
 }
 
 //------------------------------------------------------------------------------
 // Public: main command loop
 //------------------------------------------------------------------------------
-void P2PClient::run()
-{
+void P2PClient::run() {
     std::string command;
     std::cout << "Welcome to P2P Client!\n";
     std::cout << "Type 'help' for commands.\n";
 
-    while (is_running_) {
+    while (am_running) {
         std::cout << "> ";
         if (!std::getline(std::cin, command)) {
             break;
@@ -66,19 +85,24 @@ void P2PClient::run()
 
         if (command == "exit") {
             std::cout << "Exiting...\n";
-            is_running_ = false;
+            am_running = false;
         } else if (command.rfind("index ", 0) == 0) {
             // e.g. "index myfile.txt"
             std::string file_name = command.substr(6);
             handleIndex(file_name);
         } else if (command.rfind("download ", 0) == 0) {
             // e.g. "download <file uuid>"
-            uint64_t file_uuid = std::stoull(command.substr(9));
-            handleDownload(file_uuid);
-        // } else if (command.rfind("remove ", 0) == 0) {
-        //     // e.g. "remove <file uuid>"
-        //     std::string file_name = command.substr(7);
-        //     handleRemove(file_name);
+            std::string uuid_str = command.substr(9);
+            try {
+                uint64_t file_uuid = std::stoull(uuid_str);
+                handleDownload(file_uuid);
+            } catch (const std::exception& e) {
+                std::cerr << "Invalid file UUID format. Please provide a valid numeric ID.\n";
+            }
+        } else if (command.rfind("drop ", 0) == 0) {
+            // e.g. "remove <file uuid>"
+            std::string file_name = command.substr(5);
+            handleDrop(file_name);
         } else if (command == "help") {
             printHelp();
         } else {
@@ -87,244 +111,288 @@ void P2PClient::run()
     }
 }
 
-//------------------------------------------------------------------------------
-// Private: handle "index <file>"
-//------------------------------------------------------------------------------
-void P2PClient::handleIndex(const std::string& file_name)
-{
+void P2PClient::handleSignal() {
+    stopAllSharing();
+    removeAllFiles();
+    am_running = false;
+}
 
-    std::filesystem::path f_path = std::filesystem::path("storage") / file_name;
-
-
-    uint64_t file_id = sha512Hash(f_path);
-    if(file_id == 0) {
-        std::cerr << "Failed to compute file_id for '" << file_name << "'.\n";
-        return;
-    }
-
-
-    std::optional<ssize_t> file_size;
-    try {
-        file_size = fileSize(f_path);
-    } catch(const std::filesystem::filesystem_error& e) {
-        std::cerr << "Failed to get file size for '"
-                  << f_path << "': " << e.what() << std::endl;
-        return;
-    }
-
-    if (!file_size.has_value()) {
-        std::cerr << "Failed to retrieve file size for: " << f_path << "\n";
-        return;
-    }
-
-    uint64_t uint_file_size = static_cast<uint64_t>(file_size.value());
-
-
-    SourceInfo my_source;
-    my_source.peer_id = 123456;
-    my_source.ip_addr = getLocalIPAddress();
-    my_source.port    = static_cast<uint16_t>(getListeningPort());
-
-
-    dfd::FileId file_info(file_id, my_source, uint_file_size);
-    const std::vector<uint8_t> request = dfd::createIndexRequest(file_info);
-
-    if (request.empty()) {
-        std::cerr << "Failed to create index request.\n";
-        return;
-    }
-
-    auto sockOpt = dfd::openSocket(false, 0);
+int connectToServer(const SourceInfo connect_to) {
+    auto sockOpt = openSocket(false, 0);
     if (!sockOpt.has_value()) {
         std::cerr << "Failed to open client socket.\n";
-        return;
+        return -1;
     }
 
     auto [client_socket_fd, ephemeral_port] = sockOpt.value();
     std::cout << "Client socket_fd = " << client_socket_fd
               << ", ephemeral port = " << ephemeral_port << std::endl;
 
-    SourceInfo server_info;
-    server_info.ip_addr = server_ip_;
-    server_info.port    = static_cast<uint16_t>(server_port_);
-
-    if (dfd::connect(client_socket_fd, server_info) == -1) {
+    if (connect(client_socket_fd, connect_to) == -1) {
         std::cerr << "Failed to connect to server ("
-                  << server_info.ip_addr << ":" << server_info.port << ").\n";
-        dfd::closeSocket(client_socket_fd);
-        return;
+                  << connect_to.ip_addr << ":" << connect_to.port << ").\n";
+        closeSocket(client_socket_fd);
+        return -1;
     }
 
     std::cout << "Successfully connected to server at "
-              << server_info.ip_addr << ":" << server_info.port << "\n";
+              << connect_to.ip_addr << ":" << connect_to.port << "\n";
 
+    return client_socket_fd;
+}
 
-    if(dfd::sendMessage(client_socket_fd, request) == EXIT_FAILURE) {
-        std::cerr << "Failed to send index request.\n";
-        dfd::closeSocket(client_socket_fd);
-        return;
-    }
-
-
-    std::vector<uint8_t> buffer;
+//returns bytes read, -1 if err
+ssize_t recvWithTimeout(int sock, std::vector<uint8_t>& buffer) {
     struct timeval tv;
     tv.tv_sec  = 1;
     tv.tv_usec = 750000;
-    if(dfd::recvMessage(client_socket_fd, buffer, tv) == -1) {
-        std::cerr << "Failed to receive index response.\n";
-        dfd::closeSocket(client_socket_fd);
+    ssize_t read;
+    read = recvMessage(sock, buffer, tv);
+    if (read < 0) {
+        return -1;
+    }
+
+    return read;
+}
+
+//tries to send message, reports error and closes socket if issue occurs
+bool sendOkay(int sock, const std::vector<uint8_t>& message, const std::string& err_msg) {
+    if (sendMessage(sock, message) != EXIT_SUCCESS) {
+        if (!err_msg.empty())
+            std::cerr << err_msg << std::endl;
+        closeSocket(sock);
+        return false;
+    }
+
+    return true;
+}
+
+bool recvOkay(int sock, std::vector<uint8_t>& buffer, const std::string& err_msg) {
+    if (recvWithTimeout(sock, buffer) == -1) {
+        if (!err_msg.empty())
+            std::cerr << err_msg << std::endl;
+        closeSocket(sock);
+        return false;
+    }
+
+    return true;
+}
+
+bool checkCode(int sock, const std::vector<uint8_t> buffer, const uint8_t code, bool do_err) {
+    if (buffer.size() < 1 || buffer[0] != code) {
+        if (buffer[0] == FAIL) {
+            if (do_err) std::cerr << "ERROR: " << parseFailMessage(buffer) << std::endl;
+        } else {
+            if (do_err) std::cerr << "Server supplied rouge data." << std::endl;
+        }
+        closeSocket(sock);
+        return false;
+    }
+
+    return true;
+}
+
+//------------------------------------------------------------------------------
+// Private: handle "index <file>"
+//------------------------------------------------------------------------------
+void P2PClient::handleIndex(const std::string& file_name) {
+    std::filesystem::path f_path = std::filesystem::path("storage") / file_name;
+
+    //get hash
+    uint64_t file_id = sha256Hash(f_path);
+    if (file_id == 0) {
+        std::cerr << "Failed to compute file_id for '" << file_name << "'.\n";
         return;
     }
 
+    //get file size
+    std::optional<ssize_t> file_size_pkg = fileSize(f_path);
+    if (!file_size_pkg.has_value()) {
+        std::cerr << "Failed to retrieve file size for: " << f_path << std::endl;
+        return;
+    }
+    uint64_t f_size = file_size_pkg.value(); //ssize_t will be positive
 
-    dfd::closeSocket(client_socket_fd);
+    //start listening thread, since we're indexing
+    startListening();
+    if (my_listen_sock < 0) {
+        std::cerr << "Failed to open listening socket." << std::endl;
+        return;
+    }
 
+    //my identity to register with the server
+    SourceInfo my_source;
+    my_source.peer_id = my_uuid;
+    my_source.ip_addr = getLocalIPAddress();
+    my_source.port    = static_cast<uint16_t>(getListeningPort());
+
+    //file we're indexing
+    FileId file_info(file_id, my_source, f_size);
+    const std::vector<uint8_t> request = createIndexRequest(file_info);
+
+    if (request.empty()) {
+        std::cerr << "Failed to create index request.\n";
+        return;
+    }
+
+    int client_socket_fd = connectToServer(server_info);
+    if (client_socket_fd < 0) {
+        return; //err reported already
+    }
+
+    if (!sendOkay(client_socket_fd, request, "Failed to send index request."))
+        return;
+
+    std::vector<uint8_t> buffer;
+    if (!recvOkay(client_socket_fd, buffer, "Failed to receive index response."))
+        return;
+
+    if (!checkCode(client_socket_fd, buffer, INDEX_OK, true))
+        return;
+
+    closeSocket(client_socket_fd);
 
     {
         std::lock_guard<std::mutex> lock(share_mutex_);
         shared_files_[file_id] = file_name;
     }
 
-    std::cout << "File '" << file_name
-              << "' is now shared with file_id = " << file_id << ".\n";
+    std::cout << "File '" << file_name << "' is now shared with file_id = " << file_id << ".\n";
 }
 
 //------------------------------------------------------------------------------
 // Private: handle "download <file>"
 //------------------------------------------------------------------------------
-void P2PClient::handleDownload(const uint64_t file_uuid)
-{
+void P2PClient::handleDownload(const uint64_t file_uuid) {
     auto peers = findFilePeers(file_uuid);
     if (peers.empty()) {
         std::cout << "No peers found for file '" << file_uuid << "'.\n";
         return;
     }
 
-    auto [peer_ip, ip_addr, peer_port] = peers[0];
-    std::cout << "Attempting to download '" << file_uuid
-              << "' from peer " << peer_ip << ":" << peer_port << "...\n";
-
-    auto sockOpt = dfd::openSocket(false, 0);
-    if (!sockOpt.has_value()) {
-        std::cerr << "[handleDownload] Failed to open client socket.\n";
+    int client_socket_fd = connectToServer(peers[0]);
+    std::vector<uint8_t> request = createDownloadInit(file_uuid, std::nullopt);
+    if (!sendOkay(client_socket_fd, request, "Failed to send download request."))
         return;
-    }
-    auto [client_socket_fd, ephemeral_port] = sockOpt.value();
-    std::cout << "[handleDownload] client_socket_fd=" << client_socket_fd
-              << ", ephemeral_port=" << ephemeral_port << "\n";
 
-    SourceInfo peer_info;
-    peer_info.ip_addr = peer_ip;
-    peer_info.port    = static_cast<uint16_t>(peer_port);
-
-    if (dfd::connect(client_socket_fd, peer_info) == -1) {
-        std::cerr << "[handleDownload] Failed to connect to peer ("
-                  << peer_ip << ":" << peer_port << ").\n";
-        dfd::closeSocket(client_socket_fd);
+    std::vector<uint8_t> request_ack;
+    if (!recvOkay(client_socket_fd, request_ack, "No response from client."))
         return;
-    }
-    std::cout << "[handleDownload] Successfully connected to peer.\n";
 
-    std::vector<uint8_t> request = createDownloadInit(file_uuid, std::nullopt); // TODO: check if this is correct usage
-
-    if (dfd::sendMessage(client_socket_fd, request) == EXIT_FAILURE) {
-        std::cerr << "[handleDownload] Failed to send GET request.\n";
-        dfd::closeSocket(client_socket_fd);
+    if (!checkCode(client_socket_fd, request_ack, DOWNLOAD_CONFIRM, true))
         return;
-    }
 
-    std::string filename = "downloaded_" + std::to_string(file_uuid);
+    auto f_info = parseDownloadConfirm(request_ack);
+    uint64_t f_size = f_info.first;
+    std::string f_name = f_info.second;
+    auto chunks = fileChunks(f_size).value();
 
-    std::filesystem::path out_path = std::filesystem::current_path();
-    out_path /= "storage";
-    out_path /= filename;
+    //get first chunk so we can open file
+    std::vector<uint8_t> chunk_req = createChunkRequest(0);
+    std::vector<uint8_t> chunk_data;
 
-    std::ofstream out_file(out_path, std::ios::binary);
-    if (!out_file.is_open()) {
-        std::cerr << "[handleDownload] Could not open output file at '"
-                  << out_path.string() << "'.\n";
-        dfd::closeSocket(client_socket_fd);
+    if (!sendOkay(client_socket_fd, chunk_req, "Could not send chunk request."))
+        return;
+
+    if (!recvOkay(client_socket_fd, chunk_data, "Could not recieve chunk from client."))
+        return;
+
+    if (!checkCode(client_socket_fd, chunk_data, DATA_CHUNK, true))
+        return;
+
+    //write chunk to disk, open file
+    DataChunk dc = parseDataChunk(chunk_data);
+    unpackFileChunk(f_name, dc.second, dc.second.size(), 0);
+    auto file = openFile(f_name); //TODO this fails if file exists
+    if (!file) {
+        sendMessage(client_socket_fd, {FAIL});
+        closeSocket(client_socket_fd);
         return;
     }
 
-    while (true) {
-        std::vector<uint8_t> buffer;
-        struct timeval tv;
-        tv.tv_sec  = 1;
-        tv.tv_usec = 750000;
+    for (size_t i = 1; i < chunks; ++i) {
+        chunk_req = createChunkRequest(i);
+        if (!sendOkay(client_socket_fd, chunk_req, "Could not request a chunk of the file."))
+            return;
 
-        ssize_t bytes_received = recvMessage(client_socket_fd, buffer, tv);
-        if (bytes_received <= 0) {
-            break; // assuming 0 => peer closed connection; -1 => error/timeout
-        }
+        std::vector<uint8_t> data_chunk_buff;
+        if (!recvOkay(client_socket_fd, data_chunk_buff, "Could not recieve chunk from client."))
+            return;
 
-        auto [chunk_index, data_chunk] = parseDataChunk(buffer);
-        if (chunk_index == SIZE_MAX && data_chunk.empty()) {
-            std::cerr << "[handleDownload] Received invalid data chunk.\n";
-            break;
-        }
+        if (!checkCode(client_socket_fd, data_chunk_buff, DATA_CHUNK, true))
+            return;
 
-        out_file.write(
-            reinterpret_cast<const char*>(data_chunk.data()),
-            static_cast<std::streamsize>(data_chunk.size())
-        );
-
+        dc = parseDataChunk(data_chunk_buff);
+        unpackFileChunk(std::to_string(file_uuid), dc.second, dc.second.size(), dc.first);
+        assembleChunk(file.get(), std::to_string(file_uuid), dc.first);
     }
 
-    out_file.close();
-    dfd::closeSocket(client_socket_fd);
+    //finish handshake with client and close download
+    sendMessage(client_socket_fd, {FINISH_DOWNLOAD});
+    recvWithTimeout(client_socket_fd, chunk_req);
+    saveFile(std::move(file)); //destroy file pointer, saving file to disk.
 
-    std::cout << "[handleDownload] Download complete. File saved as '"
-                << filename << "'\n";
+    closeSocket(client_socket_fd);
+    std::cout << "Downloaded file." << std::endl;
 }
 
 //------------------------------------------------------------------------------
 // Private: handle "remove <file>"
 //------------------------------------------------------------------------------
-// void P2PClient::handleRemove(const std::string& file_name)
-// {
-//     // Find which UUID belongs to this filename
-//     std::string target_uuid;
-//     {
-//         std::lock_guard<std::mutex> lock(share_mutex_);
-//         for (auto& kv : shared_files_) {
-//             if (kv.second == file_name) {
-//                 target_uuid = kv.first;
-//                 break;
-//             }
-//         }
-//     }
+void P2PClient::handleDrop(const std::string& file_name) {
+    // Find which UUID belongs to this filename
+    uint64_t f_uuid = 0;
+    {
+        std::lock_guard<std::mutex> lock(share_mutex_);
+        for (auto& kv : shared_files_) {
+            if (kv.second == file_name) {
+                f_uuid = kv.first;
+                break;
+            }
+        }
+    }
 
-//     if (target_uuid.empty()) {
-//         std::cout << "We are not currently sharing file: "
-//                   << file_name << "\n";
-//         return;
-//     }
+    if (f_uuid == 0) {
+        std::cout << "We are not currently sharing file: "
+                  << file_name << "\n";
+        return;
+    }
 
-//     // Remove from the server index
-//     if (removeFile(target_uuid)) {
-//         // Remove from local map
-//         {
-//             std::lock_guard<std::mutex> lock(share_mutex_);
-//             shared_files_.erase(target_uuid);
-//         }
-//         std::cout << "Removed file '" << file_name
-//                   << "' from server index.\n";
-//     } else {
-//         std::cerr << "Failed to remove file '" << file_name
-//                   << "' from server index.\n";
-//     }
-// }
+    IndexUuidPair id_pair(f_uuid, my_uuid);
+    std::vector<uint8_t> drop_buff = createDropRequest(id_pair);
+
+    int client_socket_fd = connectToServer(server_info);
+    if (client_socket_fd < 0) {
+        return; //err reported already
+    }
+
+    if (!sendOkay(client_socket_fd, drop_buff, "Failed to send drop request."))
+        return;
+
+    std::vector<uint8_t> response_buff;
+    if (!recvOkay(client_socket_fd, response_buff, "Failed to recieve drop ack."))
+        return;
+
+    if (!checkCode(client_socket_fd, response_buff, DROP_OK, true))
+        return;
+
+    {
+        std::lock_guard<std::mutex> lock(share_mutex_);
+            shared_files_.erase(f_uuid);
+    }
+
+    closeSocket(client_socket_fd);
+    std::cout << "Dropped " << file_name << std::endl;
+}
 
 //------------------------------------------------------------------------------
 // Private: print help info
 //------------------------------------------------------------------------------
-void P2PClient::printHelp()
-{
+void P2PClient::printHelp() {
     std::cout << "Available commands:\n";
     std::cout << "  index <filename>    - Register/share <filename>\n";
     std::cout << "  download <filename> - Download <filename> from a peer\n";
-    // std::cout << "  remove <filename>   - Remove <filename> from the server\n";
+    std::cout << "  drop <filename>     - Remove <filename> from the server\n";
     std::cout << "  help                - Show this message\n";
     std::cout << "  exit                - Quit the client\n";
 }
@@ -332,112 +400,75 @@ void P2PClient::printHelp()
 //------------------------------------------------------------------------------
 // Private: find peers for a given file
 //------------------------------------------------------------------------------
-std::vector<SourceInfo>
-P2PClient::findFilePeers(uint64_t file_id)
-{
-    auto sockOpt = dfd::openSocket(false, 0);
-    if (!sockOpt.has_value()) {
-        std::cerr << "[findFilePeers] Failed to open client socket.\n";
-        return {}; // returns empty vector
+std::vector<SourceInfo> P2PClient::findFilePeers(uint64_t file_id) {
+    int client_socket_fd = connectToServer(server_info);
+    if (client_socket_fd < 0) {
+        return {}; //err already reported
     }
 
-    auto [client_socket_fd, ephemeral_port] = sockOpt.value();
-    std::cout << "[findFilePeers] client_socket_fd=" << client_socket_fd
-              << ", ephemeral_port=" << ephemeral_port << "\n";
-
-    SourceInfo server_info;
-    server_info.ip_addr = server_ip_;
-    server_info.port    = static_cast<uint16_t>(server_port_);
-
-    if (dfd::connect(client_socket_fd, server_info) == -1) {
-        std::cerr << "[findFilePeers] Failed to connect to server at "
-                  << server_info.ip_addr << ":" << server_info.port << "\n";
-        dfd::closeSocket(client_socket_fd);
-        return {};
-    }
-    std::cout << "[findFilePeers] Connected to "
-              << server_info.ip_addr << ":" << server_info.port << "\n";
-
-
+    //ask for sources
     std::vector<uint8_t> request = createSourceRequest(file_id);
-
-    if (dfd::sendMessage(client_socket_fd, request) == EXIT_FAILURE) {
-        std::cerr << "[findFilePeers] Failed to send SOURCE request.\n";
-        dfd::closeSocket(client_socket_fd);
+    if (!sendOkay(client_socket_fd, request, "Failed to send SOURCE request."))
         return {};
-    }
 
+    //recieve the list, possibly empty.
     std::vector<uint8_t> peers;
+    if (!recvOkay(client_socket_fd, peers, "Failed when recieving peer list."))
+        return {};
 
-    while (true) {
-        struct timeval tv;
-        tv.tv_sec  = 1;
-        tv.tv_usec = 750000;
+    //check we got the correct response
+    if (!checkCode(client_socket_fd, peers, SOURCE_LIST, true))
+        return {};
 
-        ssize_t bytes_received = dfd::recvMessage(client_socket_fd, peers, tv);
-        if (bytes_received <= 0) {
-            break; // assuming 0 => peer closed connection; -1 => error/timeout
-        }
-    }
-
+    //parse and return, again, possibly empty
     std::vector<SourceInfo> source_list = parseSourceList(peers);
-
-    dfd::closeSocket(client_socket_fd);
+    closeSocket(client_socket_fd);
     return source_list;
 }
 
 //------------------------------------------------------------------------------
 // Private: start listening for peer connections
 //------------------------------------------------------------------------------
-void P2PClient::startListening()
-{
-    if (listen_sock_ >= 0) {
+void P2PClient::startListening() {
+    if (my_listen_sock >= 0) {
         return;
     }
 
-    listen_sock_ = socket(AF_INET, SOCK_STREAM, 0);
-    if (listen_sock_ < 0) {
-        std::cerr << "[startListening] Could not create socket.\n";
+    //open a listener
+    auto sock_port = openSocket(true, 0);
+    if (sock_port) {
+        my_listen_sock = sock_port.value().first;
+        my_listen_port = sock_port.value().second;
+    } else {
+        std::cerr << "[startListening] Could not create and bind socket to index to peers.\n";
         return;
     }
 
-    sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = 0; // ephemeral port
-    if (bind(listen_sock_, reinterpret_cast<sockaddr*>(&addr),
-             sizeof(addr)) < 0) {
-        std::cerr << "[startListening] Bind failed.\n";
-        closeSocket(listen_sock_);
-        listen_sock_ = -1;
+    //start listening for incoming clients
+    if (listen(my_listen_sock, 5)) {
+        std::cerr << "[startListening] Could not start listening.\n";
+        closeSocket(my_listen_sock);
+        my_listen_sock = -1;
         return;
     }
 
-    if (listen(listen_sock_, 5) < 0) {
-        std::cerr << "[startListening] Listen failed.\n";
-        closeSocket(listen_sock_);
-        listen_sock_ = -1;
-        return;
-    }
-
-    listener_thread_ = std::thread(&P2PClient::listeningLoop, this);
+    my_listen_thread = std::thread(&P2PClient::listeningLoop, this);
 }
 
 //------------------------------------------------------------------------------
 // Private: the main loop that accepts connections
 //------------------------------------------------------------------------------
-void P2PClient::listeningLoop()
-{
+void P2PClient::listeningLoop() {
     std::cout << "[listeningLoop] Listening for incoming peer connections...\n";
 
     while (true) {
         sockaddr_in client_addr;
         socklen_t client_size = sizeof(client_addr);
-        int client_sock = accept(listen_sock_,
+        int client_sock = accept(my_listen_sock,
                                  reinterpret_cast<sockaddr*>(&client_addr),
                                  &client_size);
         if (client_sock < 0) {
-            if (!is_running_) {
+            if (!am_running) {
                 // If we're shutting down, break.
                 break;
             }
@@ -448,32 +479,27 @@ void P2PClient::listeningLoop()
         t.detach();
     }
 
-    closeSocket(listen_sock_);
-    listen_sock_ = -1;
+    closeSocket(my_listen_sock);
+    my_listen_sock = -1;
 }
 
 //------------------------------------------------------------------------------
 // Private: handle a single peer request
 //------------------------------------------------------------------------------
-void P2PClient::handlePeerRequest(int client_socket_fd)
-{
+void P2PClient::handlePeerRequest(int client_socket_fd) {
+    //this is a passive listening service for an indexer
+    //it should give feedback to client on error
+
+    //recieve client file request
     std::vector<uint8_t> buffer;
-    while (true) {
-        struct timeval tv;
-        tv.tv_sec  = 1;
-        tv.tv_usec = 750000;
+    if (!recvOkay(client_socket_fd, buffer, ""))
+        return;
 
-        ssize_t bytes_received = dfd::recvMessage(client_socket_fd, buffer, tv);
-        if (bytes_received <= 0) {
-            // 0 => peer closed connection; -1 => error/timeout
-            break;
-        }
-    }
-
+    if (!checkCode(client_socket_fd, buffer, DOWNLOAD_INIT, false))
+        return; //we dont want background errors randomly popping into indexing clients
+                //ui. just suppress with the print flag
 
     auto [uuid, c_size] = parseDownloadInit(buffer);
-
-
     std::string file_name;
     {
         std::lock_guard<std::mutex> lock(share_mutex_);
@@ -483,121 +509,147 @@ void P2PClient::handlePeerRequest(int client_socket_fd)
         }
     }
 
+    //next we test for file existing
     if (file_name.empty()) {
-
-        std::string msg = "ERROR: No such file UUID: " + std::to_string(uuid) + "\n";
-        std::vector<uint8_t> fail_vec(msg.begin(), msg.end());
-        dfd::sendMessage(client_socket_fd, fail_vec);
-        dfd::closeSocket(client_socket_fd);
+        std::vector<uint8_t> fail_buff = createFailMessage("ERROR: No such file UUID: " + std::to_string(uuid));
+        sendMessage(client_socket_fd, fail_buff);
+        closeSocket(client_socket_fd);
         return;
     }
-
 
     std::filesystem::path file_path = std::filesystem::current_path()
                                       / "storage"
                                       / file_name;
-
-
-    std::ifstream in_file(file_path, std::ios::binary);
-    if (!in_file.is_open()) {
-
-        std::string msg = "ERROR: Cannot open file: " + file_name + "\n";
-        std::vector<uint8_t> fail_vec(msg.begin(), msg.end());
-        dfd::sendMessage(client_socket_fd, fail_vec);
-        dfd::closeSocket(client_socket_fd);
-        return;
-    }
-
     if (c_size.has_value()) {
-        dfd::setChunkSize(c_size.value());
+        setChunkSize(c_size.value());
     }
 
-    std::optional<ssize_t> file_size_opt;
-    try {
-        file_size_opt = fileSize(file_path);
-    } catch(const std::filesystem::filesystem_error& e) {
-        std::cerr << "[handlePeerRequest] Failed to get file size for '"
-                  << file_path << "': " << e.what() << std::endl;
-    }
-
+    std::optional<ssize_t> file_size_opt = fileSize(file_path);
     if(!file_size_opt.has_value()) {
-        std::string msg = "ERROR: Could not determine size of: " + file_name + "\n";
-        std::vector<uint8_t> fail_vec = createFailMessage(msg);
-        dfd::sendMessage(client_socket_fd, fail_vec);
-        dfd::closeSocket(client_socket_fd);
+        std::vector<uint8_t> fail_vec = createFailMessage("ERROR: Could not determine size of: " + file_name);
+        sendMessage(client_socket_fd, fail_vec);
+        closeSocket(client_socket_fd);
         return;
     }
 
     std::optional<size_t> num_chunks = fileChunks(file_size_opt.value());
     if (!num_chunks.has_value()) {
-        std::string msg = "ERROR: Failed to compute number of chunks for: " + file_name + "\n";
-        std::vector<uint8_t> fail_vec = createFailMessage(msg);
-        dfd::sendMessage(client_socket_fd, fail_vec);
-        dfd::closeSocket(client_socket_fd);
+        std::vector<uint8_t> fail_buff = createFailMessage("ERROR: Failed to compute number of chunks for: " + file_name);
+        sendMessage(client_socket_fd, fail_buff);
+        closeSocket(client_socket_fd);
         return;
     }
 
-    for (size_t chunk_idx = 0; chunk_idx < num_chunks.value(); ++chunk_idx)
+    //send client confirm message with file size that they're downloading
+    std::vector<uint8_t> confirm_msg = createDownloadConfirm(file_size_opt.value(), file_name);
+    if (!sendOkay(client_socket_fd, confirm_msg, "Could not send client a download confirmation."))
+        return;
+
+    while (true) {
+        std::vector<uint8_t> client_req;
+        if (!recvOkay(client_socket_fd, client_req, ""))
+            return;
+
+        //client is done
+        if (client_req[0] == FINISH_DOWNLOAD) {
+            sendMessage(client_socket_fd, {FINISH_OK});
+            closeSocket(client_socket_fd);
+            return;
+        }
+
+        //check we actually got a chunk request
+        if (!checkCode(client_socket_fd, client_req, REQUEST_CHUNK, false))
+            return;
+
+        //read in requested chunk
+        size_t chunk_id = parseChunkRequest(client_req);
+        std::vector<uint8_t> chunk_buff;
+        auto read = packageFileChunk(file_path, chunk_buff, chunk_id);
+        if (!read) {
+            auto fail_buff = createFailMessage("Sorry, file appears to be unavailable.");
+            sendMessage(client_socket_fd, fail_buff);
+            closeSocket(client_socket_fd);
+            return;
+        }
+
+        //send data
+        chunk_buff.resize(read.value());
+        DataChunk dc = {chunk_id, chunk_buff};
+        std::vector<uint8_t> send_chunk_buff = createDataChunk(dc);
+        if (!sendOkay(client_socket_fd, send_chunk_buff, ""))
+            return;
+    }
+
+    closeSocket(client_socket_fd);
+}
+
+//------------------------------------------------------------------------------
+// Private: remove all files from the server
+//------------------------------------------------------------------------------
+void P2PClient::removeAllFiles() {
+    std::vector<uint64_t> file_ids;
+
     {
-        std::vector<uint8_t> chunk_buffer;
-
-        std::optional<ssize_t> read_bytes =
-            packageFileChunk(file_path, chunk_buffer, chunk_idx);
-        if(!read_bytes.has_value() || read_bytes.value() < 0) {
-            std::string msg = "ERROR: Failed to read chunk " + std::to_string(chunk_idx) + "\n";
-            std::vector<uint8_t> fail_vec = createFailMessage(msg);
-            dfd::sendMessage(client_socket_fd, fail_vec);
-            break;
-        }
-
-        auto data_chunk_message = createDataChunk({chunk_idx, chunk_buffer});
-        if (data_chunk_message.empty()) {
-            std::string msg = "ERROR: Failed to package chunk " + std::to_string(chunk_idx) + "\n";
-            std::vector<uint8_t> fail_vec = createFailMessage(msg);
-            dfd::sendMessage(client_socket_fd, fail_vec);
-            break;
-        }
-
-        if (dfd::sendMessage(client_socket_fd, data_chunk_message) == EXIT_FAILURE) {
-            std::cerr << "[handlePeerRequest] Send failure on chunk "
-                      << chunk_idx << ".\n";
-            break;
+        std::lock_guard<std::mutex> lock(share_mutex_);
+        for (const auto& kv : shared_files_) {
+            file_ids.push_back(kv.first);
         }
     }
 
-    // TODO: finish sending
-    // {
-    //     std::string done_msg = "FINISH_OK\n";
-    //     std::vector<uint8_t> done_vec(done_msg.begin(), done_msg.end());
-    //     dfd::sendMessage(client_socket_fd, done_vec);
-    // }
+    if (file_ids.empty()) {
+        return;
+    }
 
-    dfd::closeSocket(client_socket_fd);
+    std::cout << "Removing all shared files from server...\n";
+
+    for (const auto& file_id : file_ids) {
+        IndexUuidPair id_pair(file_id, my_uuid);
+        std::vector<uint8_t> drop_buff = createDropRequest(id_pair);
+
+        int client_socket_fd = connectToServer(server_info);
+        if (client_socket_fd < 0) {
+            continue;
+        }
+
+        if (!sendOkay(client_socket_fd, drop_buff, "")) {
+            continue;
+        }
+
+        std::vector<uint8_t> response_buff;
+        if (!recvOkay(client_socket_fd, response_buff, "")) {
+            continue;
+        }
+
+        closeSocket(client_socket_fd);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(share_mutex_);
+        shared_files_.clear();
+    }
 }
 
 //------------------------------------------------------------------------------
 // Private: stop listening and clean up
 //------------------------------------------------------------------------------
-void P2PClient::stopAllSharing()
-{
-    is_running_ = false;
+void P2PClient::stopAllSharing() {
+    am_running = false;
 
-    if (listen_sock_ >= 0) {
-        shutdown(listen_sock_, SHUT_RDWR);
-        closeSocket(listen_sock_);
-        listen_sock_ = -1;
+    if (my_listen_sock >= 0) {
+        shutdown(my_listen_sock, SHUT_RDWR);
+        closeSocket(my_listen_sock);
+        my_listen_sock = -1;
     }
 
-    if (listener_thread_.joinable()) {
-        listener_thread_.join();
+    if (my_listen_thread.joinable()) {
+        my_listen_thread.join();
     }
 }
 
 //------------------------------------------------------------------------------
 // Private: simplistic approach to get "our" IP
 //------------------------------------------------------------------------------
-std::string P2PClient::getLocalIPAddress()
-{
+std::string P2PClient::getLocalIPAddress() {
     // Very simplistic. Usually you'd query the actual network interface.
     return "127.0.0.1";
 }
@@ -605,14 +657,13 @@ std::string P2PClient::getLocalIPAddress()
 //------------------------------------------------------------------------------
 // Private: figure out which port we're listening on
 //------------------------------------------------------------------------------
-int P2PClient::getListeningPort()
-{
-    if (listen_sock_ < 0) {
+int P2PClient::getListeningPort() {
+    if (my_listen_sock < 0) {
         return 0; // not listening
     }
     sockaddr_in sin;
     socklen_t len = sizeof(sin);
-    if (getsockname(listen_sock_, reinterpret_cast<sockaddr*>(&sin), &len) == -1) {
+    if (getsockname(my_listen_sock, reinterpret_cast<sockaddr*>(&sin), &len) == -1) {
         return 0;
     }
     return ntohs(sin.sin_port);

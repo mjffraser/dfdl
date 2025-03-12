@@ -4,6 +4,7 @@
 #include "server/internal/database/internal/tableInfo.hpp"
 #include "sourceInfo.hpp"
 #include <cstdlib>
+#include <iostream>
 #include <string>
 #include <utility>
 
@@ -131,7 +132,7 @@ int Database::indexFile(const uint64_t     uuid,
 
     //finally, associate the indexer with the file
     std::string        index_key       = indexKey(indexer, uuid);
-    std::string        index_condition = INDEX_KEY.first + "=" + index_key;
+    std::string        index_condition = INDEX_KEY.first + "='" + index_key + "'";
     AttributeValuePair index_pk        = std::make_pair(INDEX_KEY.first, index_key);
     std::vector<AttributeValuePair> index_values = {
         {INDEX_ATTRIBUTES[0].first, indexer.peer_id},

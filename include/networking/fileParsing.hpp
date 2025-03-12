@@ -241,6 +241,6 @@ int saveFile(std::unique_ptr<std::ofstream> file);
  *    0
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-uint64_t sha512Hash(const std::filesystem::path& f_path);
+uint64_t sha256Hash(const std::filesystem::path& f_path);
 
 }

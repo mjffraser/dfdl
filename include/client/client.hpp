@@ -36,10 +36,10 @@ namespace dfd
  *    A map from generated 64-bit file ID -> local filename (for files we share).
  * -> share_mutex_:
  *    Guards shared_files_ from concurrent read/write.
- * -> listen_sock_:
+ * -> my_listen_sock:
  *    Socket used to listen for incoming peer connections.
- * -> listener_thread_:
- *    Background thread that accepts incoming connections on listen_sock_.
+ * -> my_listen_thread:
+ *    Background thread that accepts incoming connections on my_listen_sock.
  *
  * Constructor:
  * -> Takes:
@@ -69,7 +69,7 @@ public:
      *    Port number of the server.
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    P2PClient(const std::string& server_ip, int server_port);
+    P2PClient(const std::string& server_ip, int server_port, const uint64_t uuid);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -94,11 +94,13 @@ public:
      */
     void run();
 
+    void handleSignal();
+
 private:
     // -- High-level Command Handlers (e.g., user typed "index <filename>")
     void handleIndex(const std::string& file_name);
     void handleDownload(const uint64_t file_uuid);
-    // void handleRemove(const std::string& file_name);
+    void handleDrop(const std::string& file_name);
     void printHelp();
 
     // -- Index Server Communication --
@@ -151,17 +153,26 @@ private:
      */
     std::vector<SourceInfo> findFilePeers(uint64_t file_id);
 
+    /*
+     * removeAllFiles
+     * Description: Removes all currently shared files from the server.
+     *              Called during shutdown to ensure clean client exit.
+     */
+    void removeAllFiles();
+
+    void setRunning(bool running);
+
     // -- Listening for P2P requests --
     /*
      * startListening
      * Description: Opens a server socket (via socket.hpp) and spawns
-     *              listener_thread_ to accept incoming peer connections.
+     *              my_listen_thread to accept incoming peer connections.
      */
     void startListening();
 
     /*
      * listeningLoop
-     * Description: The main loop that runs in listener_thread_. It blocks on
+     * Description: The main loop that runs in my_listen_thread. It blocks on
      *              accept(), then hands each peer socket to handlePeerRequest().
      */
     void listeningLoop();
@@ -177,7 +188,7 @@ private:
 
     /*
      * stopAllSharing
-     * Description: Shuts down listen_sock_ and joins listener_thread_.
+     * Description: Shuts down my_listen_sock and joins my_listen_thread.
      */
     void stopAllSharing();
 
@@ -243,9 +254,9 @@ private:
     int getListeningPort();
 
 private:
-    std::string server_ip_;
-    int         server_port_;
-    bool        is_running_;
+    uint64_t    my_uuid;
+    SourceInfo  server_info;
+    bool        am_running;
 
     // For each file we share: file_id -> local filename
     // If you still have string-based "UUIDs" in your code, you can keep them
@@ -253,8 +264,9 @@ private:
     std::map<uint64_t, std::string> shared_files_;
     std::mutex                      share_mutex_;
 
-    int              listen_sock_;
-    std::thread      listener_thread_;
+    int              my_listen_sock;
+    uint16_t         my_listen_port;
+    std::thread      my_listen_thread;
 };
 
 } // namespace dfd

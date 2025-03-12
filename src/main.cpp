@@ -1,10 +1,13 @@
 #include <cstdint>
 #include <iostream>
+#include <unistd.h>
 
 #include "client/client.hpp"
+#include "server/server.hpp"
 
 static std::string ip_addr;
-static uint16_t    port;
+static uint16_t    port    = 0;
+static uint64_t    my_uuid = 0;
 
 bool isServer(int argc, char **argv) {
     bool is_server = false;
@@ -12,8 +15,16 @@ bool isServer(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--server") is_server = true;
         if (std::string(argv[i]) == "--client") is_client = true;
-        if (std::string(argv[i]) == "--ip")     ip_addr   = argv[i];
-        if (std::string(argv[i]) == "--port")   port      = std::stoi(argv[i]);
+        if (std::string(argv[i]) == "--ip") 
+            if (i+1 < argc)
+                ip_addr = argv[i+1];
+        if (std::string(argv[i]) == "--port") 
+            if (i+1 < argc) 
+                port = std::stoi(argv[i+1]);
+        if (std::string(argv[i]) == "--uuid") 
+            if (i+1 < argc) 
+                my_uuid = std::stoull(argv[i+1]);
+          
     }
 
     if (is_server && is_client) {
@@ -26,13 +37,22 @@ bool isServer(int argc, char **argv) {
         exit(-1);
     }
 
-    if (is_server) {
+    //server needs port to open on, client needs server port to connect to
+    if (!(port < 65535 && port > 1023)) {
+        std::cerr << "Missing Port!" << std::endl;
+        exit(-1);
+    }
+
+    if (is_client) {
+        //client needs a server ip
         if (ip_addr.length() == 0) {
             std::cerr << "Missing IP!" << std::endl;
             exit(-1);
         }
-        if (!(port < 65535 && port > 1023)) {
-            std::cerr << "Missing Port!" << std::endl;
+        
+        //client needs a uuid TODO: move to file?
+        if (my_uuid == 0) {
+            std::cerr << "Please supply a uuid!" << std::endl;
             exit(-1);
         }
     }
@@ -45,24 +65,32 @@ bool isServer(int argc, char **argv) {
  * main
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Entry point for the P2P Client app. Instantiates P2PClient and runs it.
+ * -> Main distributed file downloading software. 
  *
  * Takes:
- * -> argc, argv: Standard command-line arguments.
+ * -> argc:
+ *    Number of command line args supplied.
+ *
+ * -> argv:
+ *    The array of args.
  *
  * Returns:
- * -> 0 on success.
+ * -> On success:
+ *    0
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 int main(int argc, char** argv) {
-    bool server = isServer(argc, argv);
+    bool server = isServer(argc, argv); //doubles as arg parsing
     if (server) {
-        //START SERVER FUNCTION 
+        dfd::mainServer(port);
         return 0;
     }
 
     //else client
-    dfd::P2PClient client(ip_addr, port);
+    dfd::P2PClient client(ip_addr, port, my_uuid);
     client.run();
     return 0;
 }
+
+
+
