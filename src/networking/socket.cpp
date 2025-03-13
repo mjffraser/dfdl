@@ -1,6 +1,5 @@
 #include "networking/socket.hpp"
 #include "networking/internal/sockets/socketUtil.hpp"
-#include "networking/internal/messageFormatting/byteOrdering.hpp"
 #include "sourceInfo.hpp"
 
 #include <bits/types/struct_timeval.h>
@@ -33,12 +32,19 @@ std::string getMyPublicIP() {
     return ip;
 }
 
-std::optional<std::pair<int, uint16_t>> openSocket(bool is_server, uint16_t port = 0) {
+//SHARED UTIL
+std::optional<std::pair<int, uint16_t>> openSocket(bool     is_server,
+                                                   uint16_t port,
+                                                   bool     udp) {
     int socket_fd;
-    socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (socket_fd < 0) {
+    if (udp)
+        socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    else
+        socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    
+    //check socket creation
+    if (socket_fd < 0)
         return std::nullopt;
-    }
 
     if (is_server) {
         struct sockaddr_in localAddr;
@@ -61,9 +67,11 @@ std::optional<std::pair<int, uint16_t>> openSocket(bool is_server, uint16_t port
         }
 
         port = ntohs(localAddr.sin_port);
-    }else {
+
+    } else {
         port = 0;
     }
+
     return std::make_pair(socket_fd, port);
 }
 
@@ -72,7 +80,7 @@ void closeSocket(int socket_fd) {
     close(socket_fd);
 }
 
-
+//TCP UTIL
 int connect(int socket_fd, const SourceInfo& connect_to) {
     struct sockaddr_in serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr)); // 0 out struct addr
@@ -163,5 +171,71 @@ ssize_t recvMessage(int                   socket_fd,
     buffer.resize(total_recv);
     return total_recv;
 }
+
+//UDP UTIL
+namespace udp {
+    
+int sendMessage(int                         socket_fd, 
+                SourceInfo&                 receiver_info,
+                const std::vector<uint8_t>& buffer) {
+    if (receiver_info.port < 1024     ||
+        receiver_info.port > 65535    ||
+        receiver_info.ip_addr.empty() ||
+        buffer.size() > 1472) //we don't want to handle fragmentation
+        return EXIT_FAILURE;
+
+    struct sockaddr_in destination{};
+    destination.sin_family      = AF_INET;
+    destination.sin_addr.s_addr = inet_addr(receiver_info.ip_addr.c_str());
+    destination.sin_port        = htons(receiver_info.port);
+
+    ssize_t sent = sendto(socket_fd,
+                          buffer.data(),
+                          buffer.size(),
+                          0,
+                          (struct sockaddr*)&destination,
+                          sizeof(destination));
+    if (sent < 0 || sent != buffer.size())
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+int recvMessage(int                   socket_fd,
+                SourceInfo&           sender_info,
+                std::vector<uint8_t>& buffer,
+                std::optional<timeval> timeout) {
+    struct sockaddr_in source_info{};
+    buffer.resize(1472);
+
+    if (timeout) {
+        int res = setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        if (res < 0)
+            return EXIT_FAILURE;
+    }
+
+    socklen_t src_size = sizeof(source_info);
+    ssize_t recieved = recvfrom(socket_fd,
+                                buffer.data(),
+                                1472,
+                                0,
+                                (struct sockaddr*)&source_info,
+                                &src_size);
+    if (recieved < 0)
+        return EXIT_FAILURE;
+
+    if (recieved != 1472)
+        buffer.resize(recieved);
+
+    //extract senders info
+    char ip_addr[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &source_info.sin_addr, ip_addr, sizeof(ip_addr));
+    sender_info.ip_addr = ip_addr;
+    sender_info.port    = htons(source_info.sin_port);
+
+    return EXIT_SUCCESS;
+}
+
+} //udp
 
 }
