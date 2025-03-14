@@ -32,6 +32,23 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * A note on the default download directories
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * There are three attempts made to set a download directory. They are as
+ * follows:
+ * -> The environment variable $XDG_DOWNLOAD_DIR
+ *    This is almost certainly not set on the system. TODO, change to read
+ *    user-dirs
+ * -> ~/dfd
+ *    A directory named dfd inside $HOME. This should work on most machines
+ *    configured to be usable.
+ * -> cwd
+ *    The current working directory. At least it exists.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+
 namespace dfd {
 
 /*
@@ -48,6 +65,28 @@ namespace dfd {
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 void setChunkSize(const size_t size);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * setDownloadDir
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Set the directory to use for downloading to. Attempts to create the
+ *    directory(ies). If directories existance cannot be verified either before
+ *    or after the attempted creation a failure is returned.
+ *
+ * Takes:
+ * -> f_path:
+ *    The path.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCCESS
+ * -> On failure:
+ *    EXIT_FAILURE
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int setDownloadDir(const std::filesystem::path& f_path); 
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
