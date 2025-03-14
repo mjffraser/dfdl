@@ -507,8 +507,8 @@ DataChunk parseDataChunk(const std::vector<uint8_t>& data_chunk_message);
 
 
 //SERVER REGISTRATION MESSAGES
-inline constexpr uint8_t NEW_SERVER_REG     = 0x0F;
-inline constexpr uint8_t NEW_CLIENT_REG     = 0x10; //just send this byte to get the server list
+inline constexpr uint8_t SERVER_REG         = 0x0F;
+inline constexpr uint8_t CLIENT_REG         = 0x10; //just send this byte to get the server list
 inline constexpr uint8_t REG_SERVERS_LIST   = 0x11;
 inline constexpr uint8_t FORWARD_SERVER_REG = 0x12;
 inline constexpr uint8_t FORWARD_SERVER_OK  = 0x13; //ack with just this byte

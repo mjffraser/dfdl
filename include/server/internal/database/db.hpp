@@ -204,11 +204,11 @@ public:
      * -> Removes a database entry for a certain file for a certain user. 
      * 
      * Takes:
-     * -> uuid:
-     *    A unique identifier for a file to index. Should be obtained from
-     *    fileParsing.
-     * -> indexer:
-     *    SourceInfo struct about the file sources info.
+     * -> f_uuid:
+     *    A unique identifier for a file to drop an index for. Should be
+     *    obtained from fileParsing.
+     * -> c_uuid:
+     *    A unique identifier for a client to drop the file index for.
      *
      * Returns:
      * -> On success:
@@ -217,7 +217,7 @@ public:
      *    EXIT_FAILURE
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int dropIndex(const uint64_t uuid, const SourceInfo& indexer);
+    int dropIndex(const uint64_t f_uuid, const uint64_t c_uuid);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

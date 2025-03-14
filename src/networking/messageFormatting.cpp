@@ -442,7 +442,7 @@ DataChunk parseDataChunk(const std::vector<uint8_t>& data_chunk_message) {
 }
 
 std::vector<uint8_t> createNewServerReg(const SourceInfo& new_server) {
-    std::vector<uint8_t> reg_buff = {NEW_SERVER_REG};
+    std::vector<uint8_t> reg_buff = {SERVER_REG};
     reg_buff.resize(1+6);
 
     size_t offset = 1;
@@ -463,7 +463,7 @@ SourceInfo parseNewServerReg(const std::vector<uint8_t>& new_server_message) {
     SourceInfo si; si.port = 0;
     if (new_server_message.size() != 7)
         return si;
-    if (*new_server_message.begin() != NEW_SERVER_REG)
+    if (*new_server_message.begin() != SERVER_REG)
         return si;
 
     size_t offset = 1;
@@ -526,7 +526,7 @@ std::vector<SourceInfo> parseServerRegResponse(const std::vector<uint8_t>& reg_r
 int createForwardServerReg(std::vector<uint8_t>& new_server_message) {
     if (new_server_message.size() != 7)
         return EXIT_FAILURE;
-    if (*new_server_message.begin() != NEW_SERVER_REG)
+    if (*new_server_message.begin() != SERVER_REG)
         return EXIT_FAILURE;
     new_server_message[0] = FORWARD_SERVER_REG;
     return EXIT_SUCCESS;

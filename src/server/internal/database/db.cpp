@@ -201,8 +201,9 @@ int Database::indexFile(const uint64_t     uuid,
     return EXIT_SUCCESS;
 }
 
-int Database::dropIndex(const uint64_t uuid, const SourceInfo& indexer) {
-    std::string        index_key = indexKey(indexer, uuid);
+int Database::dropIndex(const uint64_t f_uuid, const uint64_t c_uuid) {
+    SourceInfo dummy_client; dummy_client.peer_id = c_uuid;
+    std::string        index_key = indexKey(dummy_client, f_uuid);
     AttributeValuePair index_pk  = std::make_pair(INDEX_KEY.first, index_key);
     auto err_val = doDelete(db, INDEX_NAME, index_pk);
     if (err_val)
