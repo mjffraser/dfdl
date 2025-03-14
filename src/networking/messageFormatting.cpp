@@ -441,4 +441,114 @@ DataChunk parseDataChunk(const std::vector<uint8_t>& data_chunk_message) {
     return {(size_t)c, data};
 }
 
+std::vector<uint8_t> createNewServerReg(const SourceInfo& new_server) {
+    std::vector<uint8_t> reg_buff = {NEW_SERVER_REG};
+    reg_buff.resize(1+6);
+
+    size_t offset = 1;
+    int err_code  = 0;
+
+    //ORDER:
+    //port, IP
+    createNetworkData(reg_buff.data(), new_server.port,    offset, err_code);
+    createNetworkData(reg_buff.data(), new_server.ip_addr, offset, err_code);
+
+    if (err_code != 0)
+        return {};
+
+    return reg_buff;
+}
+
+SourceInfo parseNewServerReg(const std::vector<uint8_t>& new_server_message) {
+    SourceInfo si; si.port = 0;
+    if (new_server_message.size() != 7)
+        return si;
+    if (*new_server_message.begin() != NEW_SERVER_REG)
+        return si;
+
+    size_t offset = 1;
+    int err_code  = 0;
+
+    //pull stuff out in the same order as it was inserted by createNewServerReg
+    parseNetworkData(&si.port,    new_server_message.data(), offset, err_code);
+    parseNetworkData(&si.ip_addr, new_server_message.data(), offset, err_code);
+
+    if (err_code != 0)
+        si.port = 0;
+
+    return si;
+}
+
+std::vector<uint8_t> createServerRegResponse(const std::vector<SourceInfo>& servers) {
+    std::vector<uint8_t> response_buff = {REG_SERVERS_LIST};
+    response_buff.resize(1+(6*servers.size()));
+
+    size_t offset = 1;
+    int err_code  = 0;
+
+    //ORDER:
+    //[port, IP] servers.size() times
+    for (size_t i = 0; i < servers.size(); ++i) {
+        createNetworkData(response_buff.data(), servers[i].port,    offset, err_code);
+        createNetworkData(response_buff.data(), servers[i].ip_addr, offset, err_code);
+    }
+
+    if (err_code != 0)
+        return {};
+
+    return response_buff;
+}
+
+std::vector<SourceInfo> parseServerRegResponse(const std::vector<uint8_t>& reg_response) {
+    if (((reg_response.size()-1) % 6) != 0)
+        return {};
+    if (*reg_response.begin() != REG_SERVERS_LIST)
+        return {};
+
+    std::vector<SourceInfo> sources;
+    size_t offset = 1;
+    int err_code  = 0;
+
+    //pull stuff out in the same order as it was inserted by createServerRegResponse
+    for (size_t i = 0; i < ((reg_response.size()-1)/6); ++i) {
+        SourceInfo si;
+        parseNetworkData(&si.port,    reg_response.data(), offset, err_code);
+        parseNetworkData(&si.ip_addr, reg_response.data(), offset, err_code);
+        sources.push_back(si); 
+    }
+
+    if (err_code != 0)
+        return {};
+
+    return sources;
+}
+
+int createForwardServerReg(std::vector<uint8_t>& new_server_message) {
+    if (new_server_message.size() != 7)
+        return EXIT_FAILURE;
+    if (*new_server_message.begin() != NEW_SERVER_REG)
+        return EXIT_FAILURE;
+    new_server_message[0] = FORWARD_SERVER_REG;
+    return EXIT_SUCCESS;
+}
+
+SourceInfo parseForwardServerReg(const std::vector<uint8_t>& forward_reg_message) {
+    SourceInfo si; si.port = 0;
+    if (forward_reg_message.size() != 7)
+        return si;
+    if (*forward_reg_message.begin() != FORWARD_SERVER_REG)
+        return si;
+    
+    size_t offset = 1;
+    int err_code  = 0;
+
+    parseNetworkData(&si.port,    forward_reg_message.data(), offset, err_code);
+    parseNetworkData(&si.ip_addr, forward_reg_message.data(), offset, err_code);
+
+    if (err_code != 0)
+        si.port = 0;
+
+    return si;
+}
+
 } //dfd

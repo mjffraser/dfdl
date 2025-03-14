@@ -53,18 +53,18 @@ std::vector<uint8_t> createFailMessage(const std::string& error_message);
  * parseFailMessage 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Unpacks the above message, and returns a std::string of the recieved error
+ * -> Unpacks the above message, and returns a std::string of the received error
  *    message.
  * 
  * Takes:
  * -> fail_message:
- *    A message recieved who's std::vector::front references the FAIL err code.
+ *    A message received who's std::vector::front references the FAIL err code.
  *
  * Returns:
  * -> On success:
  *    The error message.
  * -> On failure:
- *    An empty string. If the recieved message starts with a FAIL err code this
+ *    An empty string. If the received message starts with a FAIL err code this
  *    should never happen.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 */
@@ -72,13 +72,13 @@ std::string parseFailMessage(const std::vector<uint8_t>& fail_message);
 
 //SERVER MESSAGE CODES AND FUNCTIONS
 inline constexpr uint8_t INDEX_REQUEST      = 0x01;
-inline constexpr uint8_t INDEX_OK           = 0xF1;
-inline constexpr uint8_t DROP_REQUEST       = 0x02;
-inline constexpr uint8_t DROP_OK            = 0xF2;
-inline constexpr uint8_t REREGISTER_REQUEST = 0x03;
-inline constexpr uint8_t REREGISTER_OK      = 0xF3;
-inline constexpr uint8_t SOURCE_REQUEST     = 0x04;
-inline constexpr uint8_t SOURCE_LIST        = 0xF4;
+inline constexpr uint8_t INDEX_OK           = 0x02;
+inline constexpr uint8_t DROP_REQUEST       = 0x03;
+inline constexpr uint8_t DROP_OK            = 0x04;
+inline constexpr uint8_t REREGISTER_REQUEST = 0x05;
+inline constexpr uint8_t REREGISTER_OK      = 0x06;
+inline constexpr uint8_t SOURCE_REQUEST     = 0x07;
+inline constexpr uint8_t SOURCE_LIST        = 0x08;
 
 //small wrapper struct for passing all info needed to id
 //file and indexer
@@ -122,12 +122,12 @@ std::vector<uint8_t> createIndexRequest(FileId& file_info);
  * parseIndexRequest 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Unpacks the above message, and returns a FileId struct of the recieved
+ * -> Unpacks the above message, and returns a FileId struct of the received
  *    data.
  * 
  * Takes:
  * -> index_message:
- *    A message recieved who's std::vector::front references the INDEX_REQUEST
+ *    A message received who's std::vector::front references the INDEX_REQUEST
  *    code.
  *
  * Returns:
@@ -172,7 +172,7 @@ std::vector<uint8_t> createDropRequest(IndexUuidPair& uuids);
  * 
  * Takes:
  * -> drop_message:
- *    A message recieved who's std::vector::front references the DROP_REQUEST 
+ *    A message received who's std::vector::front references the DROP_REQUEST 
  *    code.
  *
  * Returns:
@@ -212,12 +212,12 @@ std::vector<uint8_t> createReregisterRequest(const SourceInfo& indexer);
  * parseReregisterRequest 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Unpacks the above message, and returns a SourceInfo struct of the recieved
+ * -> Unpacks the above message, and returns a SourceInfo struct of the received
  *    data. Does not include uuid.
  * 
  * Takes:
  * -> reregister_message:
- *    A message recieved who's std::vector::front references the
+ *    A message received who's std::vector::front references the
  *    REREGISTER_REQUEST code.
  *
  * Returns:
@@ -255,11 +255,11 @@ std::vector<uint8_t> createSourceRequest(const uint64_t uuid);
  * parseSourceRequest 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Unpacks the above message, and returns the recieved file uuid.
+ * -> Unpacks the above message, and returns the received file uuid.
  * 
  * Takes:
  * -> request_message:
- *    A message recieved who's std::vector::front references the SOURCE_REQUEST 
+ *    A message received who's std::vector::front references the SOURCE_REQUEST 
  *    code.
  *
  * Returns:
@@ -298,12 +298,12 @@ std::vector<uint8_t> createSourceList(const std::vector<SourceInfo>& source_list
  * parseSourceList 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Unpacks the above message, and returns the recieved list of SourceInfo
+ * -> Unpacks the above message, and returns the received list of SourceInfo
  *    objects.
  * 
  * Takes:
  * -> request_message:
- *    A message recieved who's std::vector::front references the SOURCE_LIST 
+ *    A message received who's std::vector::front references the SOURCE_LIST 
  *    code.
  *
  * Returns:
@@ -312,17 +312,16 @@ std::vector<uint8_t> createSourceList(const std::vector<SourceInfo>& source_list
  * -> On failure:
  *    An empty list. The server should send an error message instead to convey 
  *    no indexers found.
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-*/
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 std::vector<SourceInfo> parseSourceList(std::vector<uint8_t> list_message);
 
 //CLIENT MESSAGE CODES AND FUNCTIONS
-inline constexpr uint8_t DOWNLOAD_INIT      = 0x05;
-inline constexpr uint8_t DOWNLOAD_CONFIRM   = 0xF5;
-inline constexpr uint8_t REQUEST_CHUNK      = 0x06;
-inline constexpr uint8_t DATA_CHUNK         = 0xF6;
-inline constexpr uint8_t FINISH_DOWNLOAD    = 0x07; //simple ack, just send byte
-inline constexpr uint8_t FINISH_OK          = 0xF7;
+inline constexpr uint8_t DOWNLOAD_INIT      = 0x09;
+inline constexpr uint8_t DOWNLOAD_CONFIRM   = 0x0A;
+inline constexpr uint8_t REQUEST_CHUNK      = 0x0B;
+inline constexpr uint8_t DATA_CHUNK         = 0x0C;
+inline constexpr uint8_t FINISH_DOWNLOAD    = 0x0D; //simple ack, just send byte
+inline constexpr uint8_t FINISH_OK          = 0x0E;
 
 
 /*
@@ -355,11 +354,11 @@ std::vector<uint8_t> createDownloadInit(const uint64_t uuid, std::optional<size_
  * parseDownloadInit 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Unpacks the above message, and returns the recieved pair of file uuid and
+ * -> Unpacks the above message, and returns the received pair of file uuid and
  *    file chunk size. If size is std::nullopt the default is assumed.
  * Takes:
  * -> request_message:
- *    A message recieved who's std::vector::front references the DOWNLOAD_INIT 
+ *    A message received who's std::vector::front references the DOWNLOAD_INIT 
  *    code.
  *
  * Returns:
@@ -398,12 +397,12 @@ std::vector<uint8_t> createDownloadConfirm(const uint64_t f_size, const std::str
  * parseDownloadConfirm 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Unpacks the above message, and returns the recieved pair of file_size, and
+ * -> Unpacks the above message, and returns the received pair of file_size, and
  *    file name, in that order.
  *
  * Takes:
  * -> confirm_message:
- *    A message recieved who's std::vector::front references the DOWNLOAD_INIT 
+ *    A message received who's std::vector::front references the DOWNLOAD_INIT 
  *    code.
  *
  * Returns:
@@ -446,7 +445,7 @@ std::vector<uint8_t> createChunkRequest(const size_t chunk);
  *
  * Takes:
  * -> request_message:
- *    A message recieved who's std::vector::front references the REQUEST_CHUNK 
+ *    A message received who's std::vector::front references the REQUEST_CHUNK 
  *    code.
  *
  * Returns:
@@ -489,11 +488,11 @@ std::vector<uint8_t> createDataChunk(const DataChunk& chunk);
  * -> Unpacks the above message, and returns the DataChunk. Note that a data
  *    chunk could be any size. It's up to the caller to verify the size of the
  *    actual data returned in the DataChunk. For every chunk [1..n), unless
- *    recieving chunk n-1, you should be recieving chunk_size bytes.
+ *    receiving chunk n-1, you should be receiving chunk_size bytes.
  *
  * Takes:
  * -> data_chunk_message:
- *    A message recieved who's std::vector::front references the DATA_CHUNK
+ *    A message received who's std::vector::front references the DATA_CHUNK
  *    code.
  *
  *
@@ -505,5 +504,161 @@ std::vector<uint8_t> createDataChunk(const DataChunk& chunk);
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 */
 DataChunk parseDataChunk(const std::vector<uint8_t>& data_chunk_message);
+
+
+//SERVER REGISTRATION MESSAGES
+inline constexpr uint8_t NEW_SERVER_REG     = 0x0F;
+inline constexpr uint8_t NEW_CLIENT_REG     = 0x10; //just send this byte to get the server list
+inline constexpr uint8_t REG_SERVERS_LIST   = 0x11;
+inline constexpr uint8_t FORWARD_SERVER_REG = 0x12;
+inline constexpr uint8_t FORWARD_SERVER_OK  = 0x13; //ack with just this byte
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * createNewServerReg
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Creates a server-server registration request. This tells another server
+ *    you'd like to register yourself into the network. The other server will
+ *    then reply with a list of every server you're registered with, excluding
+ *    itself. That registration happens due to this message.
+ *
+ * Takes:
+ * -> new_server:
+ *    The SourceInfo object with the IP and port of the server sending this
+ *    request.
+ *
+ * Returns:
+ * -> On success:
+ *    The buffer to send over the socket.
+ * -> On failure:
+ *    An empty buffer.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+std::vector<uint8_t> createNewServerReg(const SourceInfo& new_server);
+
+/* 
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * parseNewServerReg
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Unpacks the above message, and extracts the SourceInfo object that was
+ *    passed in to create the NewServerReg message.
+ *
+ * Takes:
+ * -> new_server_message:
+ *    A message received who's std::vector::front references the NEW_SERVER_REG
+ *    code.
+ *
+ * Returns:
+ * -> On success:
+ *    A SourceInfo object with the embedded IP and port.
+ * -> On failure:
+ *    A SourceInfo object with the port set to 0.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+SourceInfo parseNewServerReg(const std::vector<uint8_t>& new_server_message);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * createServerRegResponse
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Encapsulates a list of servers (represented as SourceInfo objects with the
+ *    IP and port set) into a message to be sent over a network. It's expected
+ *    that every SourceInfo object in the vector have a valid IP and port set.
+ *
+ * -> This message should be sent in reply to either a NEW_SERVER_REG message
+ *    or a NEW_CLIENT_REG message. In the case of the server-server message
+ *    that server should register the new address to every other server it
+ *    knows and acks a FORWARD_SERVER_REG message with, and then return this
+ *    list to that new server. In the case of the client-server message that
+ *    server should just return this message formed instead with just every
+ *    server it knows about.
+ *
+ * Takes:
+ * -> servers:
+ *    The list of servers to send.
+ *
+ * Returns:
+ * -> On success:
+ *    The buffer to send over the socket.
+ * -> On failure:
+ *    An empty buffer.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+std::vector<uint8_t> createServerRegResponse(const std::vector<SourceInfo>& servers);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * parseServerRegResponse
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Unpacks the above message, and extracts the std::vector<SourceInfo> that
+ *    was passed in to create the ServerRegResponse message.
+ *
+ * Takes:
+ * -> new_server_message:
+ *    A message received who's std::vector::front references the
+ *    REG_SERVERS_LIST code.
+ *
+ * Returns:
+ * -> On success:
+ *    The vector of servers.
+ * -> On failure:
+ *    An empty vector.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+std::vector<SourceInfo> parseServerRegResponse(const std::vector<uint8_t>& reg_response);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * createForwardServerReg
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Deescription:
+ * -> Takes a NEW_SERVER_REG message, and modifies it's message code to
+ *    FORWARD_SERVER_REG.
+ *
+ * -> In the event of receiving a message with a
+ *    NEW_SERVER_REG code, that server should use this function to alter that
+ *    message and forward it to every server it knows. That server will use
+ *    the received acks to build its list for createServerRegResponse().
+ *
+ * Takes:
+ * -> new_server_message:
+ *    A message received who's std::vector::front references the NEW_SERVER_REG
+ *    code.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCCESS
+ * -> On failure:
+ *    EXIT_FAILURE
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int createForwardServerReg(std::vector<uint8_t>& new_server_message);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * parseForwardServerReg
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Unpacks the above message, and extracts the SourceInfo object that was
+ *    passed in to create the ServerRegResponse that was altered into a
+ *    FORWARD_SERVER_REG message.
+ *
+ * Takes:
+ * -> forward_reg_message:
+ *    A message received who's std::vector::front references the
+ *    FORWARD_SERVER_REG code.
+ *
+ * Returns:
+ * -> On success:
+ *    The SourceInfo object for the new server in the network.
+ * -> On failure:
+ *    A SourceInfo object with the port set to 0.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+SourceInfo parseForwardServerReg(const std::vector<uint8_t>& forward_reg_message);
 
 } //dfd
