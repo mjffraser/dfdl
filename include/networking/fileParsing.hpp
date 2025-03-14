@@ -262,6 +262,26 @@ int saveFile(std::unique_ptr<std::ofstream> file);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * deleteFile
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Deletes a file, if it exists.
+ *
+ * Takes:
+ * -> f_path:
+ *    The path to the file to delete.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCCESS
+ * -> On failure:
+ *    EXIT_FAILURE
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int deleteFile(const std::string& f_path);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * sha512Hash
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
