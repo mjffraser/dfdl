@@ -77,6 +77,57 @@ int Database::insertOrUpdate(sqlite3*                               db,
     return EXIT_SUCCESS;
 }
 
+
+int Database::backupDatabase(const std::string& path) {
+    sqlite3* copy;
+    sqlite3_backup* backup;
+    if (sqlite3_open(path.c_str(), &copy) != SQLITE_OK) {
+        sqlite3_close(copy);
+        return reportError("Couldn't open a copy. Are write perms restricted?");
+    }
+    
+    backup = sqlite3_backup_init(copy, "main", db, "main");
+    if (!backup) {
+        sqlite3_close(copy); 
+        return reportError("Could not initialize backup.");
+    }
+
+    auto res = sqlite3_backup_step(backup, -1);
+
+    sqlite3_backup_finish(backup);
+    sqlite3_close(copy);
+    if (res != SQLITE_DONE)
+        return reportError("Backup failed.");
+    return EXIT_SUCCESS;
+}
+
+int Database::mergeDatabases(const std::string& path) {
+    auto err_val = doAttach(db, path, "copy");
+    if (err_val)
+        return reportError(err_val.value());
+
+    //copy peer rows
+    err_val = doInsertOrIgnore(db, "copy", std::string(PEER_NAME));
+    if (err_val)
+        return reportError(err_val.value());
+
+    //copy file rows
+    err_val = doInsertOrIgnore(db, "copy", std::string(FILE_NAME));
+    if (err_val)
+        return reportError(err_val.value());
+
+    //finally copy index table now that the fk's are copied.
+    err_val = doInsertOrIgnore(db, "copy", std::string(INDEX_NAME));
+    if (err_val)
+        return reportError(err_val.value());
+
+    err_val = doDetach(db, "copy");
+    if (err_val)
+        return reportError(err_val.value());
+
+    return EXIT_SUCCESS;
+}
+
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * compositeKey
