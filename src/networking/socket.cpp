@@ -17,6 +17,22 @@
 
 namespace dfd {
 
+std::string getMyPublicIP() {
+    char buff[16];
+    FILE* res = popen("curl -s https://api64.ipify.org", "r");
+    if (!res)
+        return "";
+
+    fgets(buff, 16, res);
+    std::string ip;
+    for (auto& c : buff)
+        if (c)
+            ip += c;
+
+    pclose(res);
+    return ip;
+}
+
 std::optional<std::pair<int, uint16_t>> openSocket(bool is_server, uint16_t port = 0) {
     int socket_fd;
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
