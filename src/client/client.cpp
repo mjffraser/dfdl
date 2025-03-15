@@ -54,6 +54,10 @@ P2PClient::P2PClient(const std::string& server_ip, int server_port, const uint64
 
     g_client_ptr = this;
     signal(2, signalHandler); // SIGINT
+
+    peer_index = 0;
+    // Start the listening thread at initialization
+    startListening();
 }
 
 //------------------------------------------------------------------------------
@@ -287,53 +291,131 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
     std::string f_name = f_info.second;
     auto chunks = fileChunks(f_size).value();
 
-    //get first chunk so we can open file
-    std::vector<uint8_t> chunk_req = createChunkRequest(0);
-    std::vector<uint8_t> chunk_data;
+    {  
+        std::lock_guard<std::mutex> lock(file_mutex);
+        shared_file_ptr = std::make_shared<std::ofstream>(f_name, std::ios::binary);
+        if (!shared_file_ptr || !shared_file_ptr->is_open()) {
+            std::cerr << "Error: Unable to open file " << f_name << std::endl;
+            return;
+        }
+    }
+ 
+     for (size_t i = 0; i < chunks; ++i) {
+         remaining_chunks.push(i);
+     }
+     std::cerr << "Number of chunks: " << remaining_chunks.size() << std::endl;
+ 
+     std::vector<std::thread> workers;
+     size_t num_threads = std::min(peers.size(), static_cast<size_t>(std::thread::hardware_concurrency()));
 
+     for (size_t i = 0; i < peers.size(); ++i) {
+         workers.emplace_back(
+            &P2PClient::workerThread, 
+            this, file_uuid, 
+            f_name, 
+            f_size, 
+            std::ref(peers),
+            client_socket_fd
+        );
+     }
+ 
+     {
+        std::unique_lock<std::mutex> lock(queue_mutex);
+        cv.wait(lock, [&] { return remaining_chunks.empty() || download_complete; });
+
+        if (remaining_chunks.empty()) {
+            download_complete = true;
+            cv.notify_all();
+        }
+    }
+
+     for (auto& worker : workers) {
+         worker.join();
+     }
+
+    {
+        std::lock_guard<std::mutex> lock(file_mutex);
+        shared_file_ptr->close();
+        shared_file_ptr.reset();
+    }
+
+    std::cout << "Downloaded file." << std::endl;
+}
+
+void P2PClient::workerThread(const uint64_t file_uuid, const std::string& f_name, uint64_t f_size, const std::vector<dfd::SourceInfo>& peers, int initial_client_socket_fd) {
+    while (!download_complete) {
+        size_t chunk_index;
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex);
+            if (remaining_chunks.empty()) {
+                break;
+            }
+            chunk_index = remaining_chunks.front();
+            remaining_chunks.pop();
+
+            if (remaining_chunks.empty()) {
+                cv.notify_all();
+            }
+        }
+
+        size_t local_peer_index;
+        {
+            std::lock_guard<std::mutex> lock(peer_index_mutex);
+            local_peer_index = peer_index;
+            peer_index = (peer_index + 1) % peers.size();
+        }
+
+        std::string peer_address = peers[local_peer_index].ip_addr;
+        int client_socket_fd = initial_client_socket_fd;
+
+        if (local_peer_index != 0 ) {
+            client_socket_fd = connectToServer(peers[local_peer_index]);
+
+            std::vector<uint8_t> request = createDownloadInit(file_uuid, std::nullopt);
+            if (!sendOkay(client_socket_fd, request, "Failed to send download request."))
+                return;
+
+            std::vector<uint8_t> request_ack;
+            if (!recvOkay(client_socket_fd, request_ack, "No response from client."))
+                return;
+
+            if (!checkCode(client_socket_fd, request_ack, DOWNLOAD_CONFIRM, true))
+                return;
+        }
+
+        std::cout << "Downloading chunk " << chunk_index << " from peer: " << peer_address << std::endl;
+        downloadChunk(client_socket_fd, f_name, f_size, chunk_index, peer_address);
+    }
+}
+
+void P2PClient::downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index, const std::string& peer_address) {
+    std::vector<uint8_t> chunk_req = createChunkRequest(chunk_index);
     if (!sendOkay(client_socket_fd, chunk_req, "Could not send chunk request."))
         return;
 
-    if (!recvOkay(client_socket_fd, chunk_data, "Could not recieve chunk from client."))
+    std::vector<uint8_t> chunk_data;
+    if (!recvOkay(client_socket_fd, chunk_data, "Could not receive chunk from client."))
         return;
 
     if (!checkCode(client_socket_fd, chunk_data, DATA_CHUNK, true))
         return;
 
-    //write chunk to disk, open file
     DataChunk dc = parseDataChunk(chunk_data);
-    unpackFileChunk(f_name, dc.second, dc.second.size(), 0);
-    auto file = openFile(f_name); //TODO this fails if file exists
-    if (!file) {
-        sendMessage(client_socket_fd, {FAIL});
-        closeSocket(client_socket_fd);
-        return;
+
+    {
+        std::unique_lock<std::mutex> lock(file_mutex);
+        unpackFileChunk(f_name, dc.second, dc.second.size(), dc.first);
+        if (shared_file_ptr && shared_file_ptr->is_open()) {
+            assembleChunk(shared_file_ptr.get(), f_name, dc.first);
+        }
     }
 
-    for (size_t i = 1; i < chunks; ++i) {
-        chunk_req = createChunkRequest(i);
-        if (!sendOkay(client_socket_fd, chunk_req, "Could not request a chunk of the file."))
-            return;
-
-        std::vector<uint8_t> data_chunk_buff;
-        if (!recvOkay(client_socket_fd, data_chunk_buff, "Could not recieve chunk from client."))
-            return;
-
-        if (!checkCode(client_socket_fd, data_chunk_buff, DATA_CHUNK, true))
-            return;
-
-        dc = parseDataChunk(data_chunk_buff);
-        unpackFileChunk(std::to_string(file_uuid), dc.second, dc.second.size(), dc.first);
-        assembleChunk(file.get(), std::to_string(file_uuid), dc.first);
-    }
+    std::cout << "Chunk " << chunk_index << " successfully downloaded from peer: " << peer_address << std::endl;
 
     //finish handshake with client and close download
     sendMessage(client_socket_fd, {FINISH_DOWNLOAD});
     recvWithTimeout(client_socket_fd, chunk_req);
-    saveFile(std::move(file)); //destroy file pointer, saving file to disk.
-
     closeSocket(client_socket_fd);
-    std::cout << "Downloaded file." << std::endl;
 }
 
 //------------------------------------------------------------------------------

@@ -6,6 +6,9 @@
 #include <mutex>
 #include <thread>
 #include <cstdint>
+#include <condition_variable>
+#include <queue>
+#include <atomic>
 
 #include "sourceInfo.hpp"         // for SourceInfo
 #include "networking/messageFormatting.hpp"  // for FileId, IndexUuidPair, etc.
@@ -97,6 +100,10 @@ public:
     void handleSignal();
 
 private:
+    std::condition_variable cv;
+    std::queue<size_t> remaining_chunks;
+    std::atomic<bool> download_complete{false};
+
     // -- High-level Command Handlers (e.g., user typed "index <filename>")
     void handleIndex(const std::string& file_name);
     void handleDownload(const uint64_t file_uuid);
@@ -253,6 +260,9 @@ private:
      */
     int getListeningPort();
 
+    void workerThread(const uint64_t file_uuid, const std::string& f_name, uint64_t f_size, const std::vector<dfd::SourceInfo>& peers, int initial_client_socket_fd);
+    void downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index, const std::string& peer_address);
+
 private:
     uint64_t    my_uuid;
     SourceInfo  server_info;
@@ -263,6 +273,11 @@ private:
     // here and convert to uint64_t in your .cpp implementations.
     std::map<uint64_t, std::string> shared_files_;
     std::mutex                      share_mutex_;
+    std::mutex                      queue_mutex;
+    std::mutex                      peer_index_mutex;
+    size_t                          peer_index;
+    std::mutex                      file_mutex;
+    std::shared_ptr<std::ofstream>  shared_file_ptr;
 
     int              my_listen_sock;
     uint16_t         my_listen_port;
