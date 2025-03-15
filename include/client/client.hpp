@@ -100,8 +100,9 @@ public:
     void handleSignal();
 
 private:
-    std::condition_variable cv;
+    std::condition_variable chunks_ready;
     std::queue<size_t> remaining_chunks;
+    std::queue<size_t> done_chunks;
     std::atomic<bool> download_complete{false};
 
     // -- High-level Command Handlers (e.g., user typed "index <filename>")
@@ -260,8 +261,8 @@ private:
      */
     int getListeningPort();
 
-    void workerThread(const uint64_t file_uuid, const std::string& f_name, uint64_t f_size, const std::vector<dfd::SourceInfo>& peers, int initial_client_socket_fd);
-    void downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index, const std::string& peer_address);
+    void workerThread(const uint64_t file_uuid, const std::vector<dfd::SourceInfo>& peers, size_t thread_ind);
+    void downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index);
 
 private:
     uint64_t    my_uuid;
@@ -273,11 +274,8 @@ private:
     // here and convert to uint64_t in your .cpp implementations.
     std::map<uint64_t, std::string> shared_files_;
     std::mutex                      share_mutex_;
-    std::mutex                      queue_mutex;
-    std::mutex                      peer_index_mutex;
-    size_t                          peer_index;
-    std::mutex                      file_mutex;
-    std::shared_ptr<std::ofstream>  shared_file_ptr;
+    std::mutex                      remaining_chunks_mutex;
+    std::mutex                      done_chunks_mutex;
 
     int              my_listen_sock;
     uint16_t         my_listen_port;
