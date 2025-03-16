@@ -6,8 +6,9 @@
 #include "server/server.hpp"
 
 static std::string ip_addr;
-static uint16_t    port    = 0;
-static uint64_t    my_uuid = 0;
+static std::string download_dir = "";
+static uint16_t    port         = 0;
+static uint64_t    my_uuid      = 0;
 
 bool isServer(int argc, char **argv) {
     bool is_server = false;
@@ -24,7 +25,9 @@ bool isServer(int argc, char **argv) {
         if (std::string(argv[i]) == "--uuid") 
             if (i+1 < argc) 
                 my_uuid = std::stoull(argv[i+1]);
-          
+        if (std::string(argv[i]) == "--download")
+            if (i+1 < argc)
+                download_dir = argv[i+1];
     }
 
     if (is_server && is_client) {
@@ -87,7 +90,7 @@ int main(int argc, char** argv) {
     }
 
     //else client
-    dfd::P2PClient client(ip_addr, port, my_uuid);
+    dfd::P2PClient client(ip_addr, port, my_uuid, download_dir);
     client.run();
     return 0;
 }

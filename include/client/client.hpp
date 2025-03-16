@@ -72,7 +72,10 @@ public:
      *    Port number of the server.
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    P2PClient(const std::string& server_ip, int server_port, const uint64_t uuid);
+    P2PClient(const std::string& server_ip,
+              int                server_port, 
+              const uint64_t     uuid,
+              const std::string& download_dir);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

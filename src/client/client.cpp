@@ -45,7 +45,10 @@ static void signalHandler(int signum) {
 //------------------------------------------------------------------------------
 // Constructor
 //------------------------------------------------------------------------------
-P2PClient::P2PClient(const std::string& server_ip, int server_port, const uint64_t id)
+P2PClient::P2PClient(const std::string& server_ip,
+                     int                server_port, 
+                     const uint64_t     id,
+                     const std::string& download_dir)
   : am_running(true),
     my_uuid(id),
     my_listen_sock(-1)
@@ -55,6 +58,9 @@ P2PClient::P2PClient(const std::string& server_ip, int server_port, const uint64
 
     g_client_ptr = this;
     signal(2, signalHandler); // SIGINT
+
+    if (!download_dir.empty())
+        setDownloadDir(download_dir);
 
     // peer_index = 0;
     // Start the listening thread at initialization
@@ -201,7 +207,7 @@ bool checkCode(int sock, const std::vector<uint8_t> buffer, const uint8_t code, 
 // Private: handle "index <file>"
 //------------------------------------------------------------------------------
 void P2PClient::handleIndex(const std::string& file_name) {
-    std::filesystem::path f_path = std::filesystem::path("storage") / file_name;
+    std::filesystem::path f_path = file_name;
 
     //get hash
     uint64_t file_id = sha256Hash(f_path);
@@ -428,6 +434,7 @@ void P2PClient::downloadChunk(int client_socket_fd, const std::string& f_name, u
 
     DataChunk dc = parseDataChunk(chunk_data);
     unpackFileChunk(f_name, dc.second, dc.second.size(), chunk_index);
+    sleep(1);
     {
         std::unique_lock<std::mutex> lock(done_chunks_mutex);
         done_chunks.push(chunk_index);
@@ -559,6 +566,7 @@ void P2PClient::startListening() {
 //------------------------------------------------------------------------------
 void P2PClient::listeningLoop() {
     std::cout << "[listeningLoop] Listening for incoming peer connections...\n";
+    std::cout << "PORT: " << my_listen_port << std::endl;
 
     while (true) {
         sockaddr_in client_addr;
@@ -599,26 +607,25 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
                 //ui. just suppress with the print flag
 
     auto [uuid, c_size] = parseDownloadInit(buffer);
-    std::string file_name;
+    std::string file_path;
     {
         std::lock_guard<std::mutex> lock(share_mutex_);
         auto it = shared_files_.find(uuid);
         if (it != shared_files_.end()) {
-            file_name = it->second;
+            file_path = it->second;
         }
     }
 
     //next we test for file existing
-    if (file_name.empty()) {
+    if (file_path.empty()) {
         std::vector<uint8_t> fail_buff = createFailMessage("ERROR: No such file UUID: " + std::to_string(uuid));
         sendMessage(client_socket_fd, fail_buff);
         closeSocket(client_socket_fd);
         return;
     }
 
-    std::filesystem::path file_path = std::filesystem::current_path()
-                                      / "storage"
-                                      / file_name;
+    std::string file_name = std::filesystem::path(file_path).filename();
+
     if (c_size.has_value()) {
         setChunkSize(c_size.value());
     }
