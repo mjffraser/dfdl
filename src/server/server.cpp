@@ -16,6 +16,11 @@
 #include <condition_variable>
 #include <atomic>
 
+///////////////////////////////
+//TODO:
+//Thread protection, known servers
+///////////////////////////////
+
 namespace dfd {
 
 //DATABASE
@@ -51,6 +56,10 @@ std::condition_variable ekko_flag;
 
 //these threads are spawned on each accepted connection and handle said connection
 void handleConnectionThread(int client_fd) {
+    ////////////////////////
+    //TODL:
+    //move scyncing into handleConnection
+    ////////////////////////
     struct timeval timeout;
     timeout.tv_sec  = 5;
     timeout.tv_usec = 0;
@@ -73,10 +82,24 @@ void handleConnectionThread(int client_fd) {
     
     //notify workers that a job is avalable
     job_ready.notify_one();
+    ///////////////////////////
+    //TODO:
+    //recive responce from worker, so that task can be verified
+    //trigger leader elections if needed, potentially respawning a worker
+    ///////////////////////////
 }
 
 //worker thread, needs message handelling
 void workerThread() {
+    //////////////////////////////
+    //TODO:
+    //make a leader
+    //write thread and 3 reads
+    //////////////////////////////
+    //////////////////////////////
+    //TODL:
+    //Race condition on server initalization
+    //////////////////////////////
     while (server_running) {
         //the job this thread is working on
         Job job;
@@ -98,6 +121,11 @@ void workerThread() {
         }
 
         /////////////////////MESSAGE HANDLING/////////////////
+        //////////////////////////
+        //TODO:
+        //Allow all message types to have ekkos
+        //delist server from known if ekko fails
+        //////////////////////////
         //get the message to handle
         std::vector<uint8_t>& client_request = job.client_message;
         std::uint8_t& decision_byte = client_request.front();
@@ -188,6 +216,68 @@ void workerThread() {
 
         //close the jobs socket (with client file directory)
         closeSocket(job.client_sock);
+    }
+}
+
+void controlMsgThread(SourceInfo faulty_client, uint64_t file_uuid) {
+    auto socket = openSocket(false);
+    int num_of_attempt = 3;
+    bool client_reachable = false;
+    bool file_avalible = true;
+
+    if (!socket) {
+        //handle fail to open
+        std::cerr << "[controlMsgThread] Failed to open socket";
+        return;
+    }
+
+    auto [sock_fd, my_port] = socket.value();
+
+    for (int i = 0; i < num_of_attempt; i++){
+        if (tcp::connect(sock_fd, faulty_client) != -1){
+            client_reachable = true;
+            break;
+        }
+    }
+
+    while (client_reachable) {
+        // attempt to download one chunk from client
+        struct timeval timeout;
+        timeout.tv_sec  = 5;
+        timeout.tv_usec = 0;
+
+        // check if file exist on client
+        std::vector<uint8_t> control_msg = createDownloadInit(file_uuid, std::nullopt);
+        tcp::sendMessage(sock_fd, control_msg);
+
+        // expect client to ack back
+        std::vector<uint8_t> request_ack;
+        if (tcp::recvMessage(sock_fd, request_ack, timeout) < 0) {
+            client_reachable = false;
+            closeSocket(sock_fd);
+            break;
+        }
+
+        // check for ack code
+        if (request_ack.size() < 1 || request_ack[0] != DOWNLOAD_CONFIRM) {
+            file_avalible = false;
+            if (request_ack[0] == FAIL) {
+                // error - client can't find file
+            } 
+            closeSocket(sock_fd);
+            break;
+        }
+
+        // terminate file download
+        tcp::sendMessage(sock_fd, {FINISH_DOWNLOAD});
+        closeSocket(sock_fd);
+        break;
+    }
+
+    if (!client_reachable || !file_avalible) {
+
+        // TODO - update db
+
     }
 }
 
@@ -295,6 +385,10 @@ void setupThread(SourceInfo known_server) {
     closeSocket(client_sock);
 }
 
+///////////////////////////////
+//TODO:
+//add a listing checkup and timeout function
+///////////////////////////////
 ///////main function
 int run_server(const uint16_t     port, 
                const std::string& connect_ip, 
