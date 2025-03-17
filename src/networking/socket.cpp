@@ -80,6 +80,8 @@ void closeSocket(int socket_fd) {
     close(socket_fd);
 }
 
+namespace tcp {
+
 //TCP UTIL
 int connect(int socket_fd, const SourceInfo& connect_to) {
     struct sockaddr_in serverAddr;
@@ -171,6 +173,8 @@ ssize_t recvMessage(int                   socket_fd,
     buffer.resize(total_recv);
     return total_recv;
 }
+
+} //tcp
 
 //UDP UTIL
 namespace udp {

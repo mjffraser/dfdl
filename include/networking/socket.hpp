@@ -74,6 +74,8 @@ std::optional<std::pair<int, uint16_t>> openSocket(bool     is_server,
  */
 void closeSocket(int socket_fd);
 
+namespace tcp {
+
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * connect
@@ -191,6 +193,8 @@ int sendMessage(int socket_fd, const std::vector<uint8_t>& data);
 ssize_t recvMessage(int                   socket_fd, 
                     std::vector<uint8_t>& buffer, 
                     timeval               timeout);
+
+} //tcp
 
 namespace udp {
     

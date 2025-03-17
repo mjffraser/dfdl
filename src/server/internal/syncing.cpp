@@ -21,13 +21,13 @@ ssize_t forwardRegistration(std::vector<uint8_t>& reg_message,
             return registered_with;
 
         auto [server_sock, port] = sock.value();
-        if (connect(server_sock, server) == -1) {
+        if (tcp::connect(server_sock, server) == -1) {
             closeSocket(server_sock);
             continue;
         }
 
         //we've connected, now send the forwarded server reg
-        if (EXIT_SUCCESS != sendMessage(server_sock, reg_message)) {
+        if (EXIT_SUCCESS != tcp::sendMessage(server_sock, reg_message)) {
             closeSocket(server_sock);
             continue;
         }
@@ -37,7 +37,7 @@ ssize_t forwardRegistration(std::vector<uint8_t>& reg_message,
         timeval timeout;
         timeout.tv_sec  = 2;
         timeout.tv_usec = 0;
-        if (recvMessage(server_sock, server_response, timeout) < 0) {
+        if (tcp::recvMessage(server_sock, server_response, timeout) < 0) {
             closeSocket(server_sock);
             continue;
         }

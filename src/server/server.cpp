@@ -57,7 +57,7 @@ void handleConnectionThread(int client_fd) {
     std::vector<uint8_t> buffer; //msg buff
 
     //store the recved msg by calling it with the above time out n buffer
-    ssize_t read = recvMessage(client_fd, buffer, timeout);
+    ssize_t read = tcp::recvMessage(client_fd, buffer, timeout);
     //check if recv failed
     if (read <= 0) { //-1 on err
         std::cerr << "no message or timeout" << std::endl;
@@ -184,7 +184,7 @@ void workerThread() {
 
 
         //send response to client
-        sendMessage(job.client_sock, response);
+        tcp::sendMessage(job.client_sock, response);
 
         //close the jobs socket (with client file directory)
         closeSocket(job.client_sock);
@@ -222,7 +222,7 @@ void listenThread(const uint16_t port) {
         SourceInfo clientInfo;
         
         //accept new client connection
-        int client_sock = accept(server_fd, clientInfo);
+        int client_sock = tcp::accept(server_fd, clientInfo);
         
         if (client_sock < 0) {
             std::cerr << "Client disconnected.\n";
@@ -254,7 +254,7 @@ void setupThread(SourceInfo known_server) {
     int client_sock = socket.value().first;
 
     //attempt to connect and catch any errors and output error
-    if (connect(client_sock, known_server) == EXIT_FAILURE) {
+    if (tcp::connect(client_sock, known_server) == EXIT_FAILURE) {
         std::cerr << "couldent connect to sister server @ IP:" << server_ip << "PORT:" << server_port << "\n";
         closeSocket(client_sock);
         return;
@@ -264,7 +264,7 @@ void setupThread(SourceInfo known_server) {
 
     //send initial_message setup request message
     std::vector<uint8_t> setup_message = createNewServerReg(our_server);
-    if (sendMessage(client_sock, setup_message) == EXIT_FAILURE) {
+    if (tcp::sendMessage(client_sock, setup_message) == EXIT_FAILURE) {
         std::cerr << "Failed to send setup message.\n";
         closeSocket(client_sock);
         return;
@@ -273,7 +273,7 @@ void setupThread(SourceInfo known_server) {
     //buffer for response
     std::vector<uint8_t> buffer;
     timeval timeout = {5, 0};
-    ssize_t read_bytes = recvMessage(client_sock, buffer, timeout);
+    ssize_t read_bytes = tcp::recvMessage(client_sock, buffer, timeout);
     //errorcheck
     if (read_bytes <= 0) {
         std::cerr << "no response from known server.\n";
