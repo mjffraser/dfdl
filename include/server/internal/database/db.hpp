@@ -20,8 +20,10 @@ struct SourceInfo; //definition in src
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
  * -> A class object to manage the database instance for a given server. 
- *    Contains functionality to index files, drop indexes, and get a list of the
- *    peers indexing a paticular file.
+ *    Contains functionality to index files, drop indexes, get a list of the
+ *    peers indexing a paticular file, serialization of a database for network
+ *    transfer, and the ability to merge a serialized database into the open
+ *    one.
  *
  * Member Variables:
  * -> db:
@@ -40,7 +42,7 @@ class Database {
 private:
     sqlite3*    db;
     std::string err_msg = ""; //set on any error
-    
+        
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      * setupDatabase
@@ -57,7 +59,7 @@ private:
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
     int setupDatabase();
-    
+        
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      * reportError
@@ -78,33 +80,34 @@ private:
 
 
     /*
-    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-    * insertOrUpdate
-    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-    * Description:
-    * -> Checks SQLite database for an entry. If it exists, updates the row with
-    *    the provided values. If it doesn't, inserts a row into the database.
-    *
-    * Takes:
-    * -> db:
-    *    The SQLite database to operate on.
-    * -> table_name:
-    *    The table name to select, and insert or update with.
-    * -> pk_pair:
-    *    The primary key of the row to select.
-    * -> values:
-    *    The value pairs in the form <"key_name", value> to insert/update. Is
-    *    modified if an insertion occurs to add primary key value pair in.
-    * -> pk_condition:
-    *    The condition to select the row with. Ex. "id=16274526523232"
-    *
-    * Returns:
-    * -> On success:
-    *    EXIT_SUCCESS
-    * -> On failure:
-    *    EXIT_FAILURE
-    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-    */
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * insertOrUpdate
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * Description:
+     * -> Checks SQLite database for an entry. If it exists, updates the row 
+     *    with the provided values. If it doesn't, inserts a row into the
+     *    database.
+     *
+     * Takes:
+     * -> db:
+     *    The SQLite database to operate on.
+     * -> table_name:
+     *    The table name to select, and insert or update with.
+     * -> pk_pair:
+     *    The primary key of the row to select.
+     * -> values:
+     *    The value pairs in the form <"key_name", value> to insert/update. Is
+     *    modified if an insertion occurs to add primary key value pair in.
+     * -> pk_condition:
+     *    The condition to select the row with. Ex. "id=16274526523232"
+     *
+     * Returns:
+     * -> On success:
+     *    EXIT_SUCCESS
+     * -> On failure:
+     *    EXIT_FAILURE
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     */
     int insertOrUpdate(sqlite3*                               db, 
                        const std::string&                     table_name, 
                        const AttributeValuePair&              pk_pair, 
@@ -126,6 +129,44 @@ public:
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
     std::string sqliteError();
+
+    /*
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * backupDatabase
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * Description:
+     * -> Copies from the open database into a SQLite database file at path.
+     *
+     * Takes:
+     * -> path:
+     *    A full path for where to write the copy to, relative or absolute.
+     *
+     * Returns:
+     * -> On success:
+     *    EXIT_SUCCESS
+     * -> On failure:
+     *    EXIT_FAILURE
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     */
+    int backupDatabase(const std::string& path);
+
+    /*
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * mergeDatabases
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     * Description:
+     * -> Merges all the rows from a SQLite database at path into the
+     *    currently open and managed database. Any rows that already exist in
+     *    the database being copied in to will be skipped based on duplicate
+     *    primary keys.
+     *
+     * Takes:
+     * -> path:
+     *    A full path for the SQLite database to copy from, relative or
+     *    absolute.
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     */
+    int mergeDatabases(const std::string& path);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -163,11 +204,11 @@ public:
      * -> Removes a database entry for a certain file for a certain user. 
      * 
      * Takes:
-     * -> uuid:
-     *    A unique identifier for a file to index. Should be obtained from
-     *    fileParsing.
-     * -> indexer:
-     *    SourceInfo struct about the file sources info.
+     * -> f_uuid:
+     *    A unique identifier for a file to drop an index for. Should be
+     *    obtained from fileParsing.
+     * -> c_uuid:
+     *    A unique identifier for a client to drop the file index for.
      *
      * Returns:
      * -> On success:
@@ -176,7 +217,7 @@ public:
      *    EXIT_FAILURE
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int dropIndex(const uint64_t uuid, const SourceInfo& indexer);
+    int dropIndex(const uint64_t f_uuid, const uint64_t c_uuid);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -244,6 +285,7 @@ public:
         }
     }
 
+    //DESTRUCTOR
     ~Database() {
         sqlite3_close(db);
     }

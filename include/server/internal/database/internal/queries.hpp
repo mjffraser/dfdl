@@ -178,4 +178,83 @@ std::optional<std::string> doDelete(sqlite3*                 db,
                                     const std::string        table_name,
                                     const AttributeValuePair pk_pair);
 
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * doAttach
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Attach a SQLite database file to the open db. This should only be used for
+ *    merging database rows.
+ *
+ * Takes:
+ * -> db:
+ *    The open SQLite database to attach to.
+ * -> to_attach:
+ *    The path to the database to attach.
+ * -> attach_as:
+ *    The key to access the attached database with (XYZ.PEERS or XYZ.FILES).
+ *
+ * Returns:
+ * -> On success:
+ *    std::nullopt
+ * -> On failure:
+ *    Error message.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+std::optional<std::string> doAttach(sqlite3*           db,
+                                    const std::string& to_attach,
+                                    const std::string& attach_as);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * doInsertOrIgnore
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Does an INSERT OR IGNORE operation from table_name in the attached
+ *    database into the open database. This should only be used for merging
+ *    database rows.
+ *
+ * Takes:
+ * -> db:
+ *    The open SQLite database.
+ * -> attached_as:
+ *    The key to access the attached database with (XYZ.PEERS, XYZ.FILES).
+ * -> table_name:
+ *    The table present in both databases to copy.
+ *
+ * Returns:
+ * -> On success:
+ *    std::nullopt
+ * -> On failure:
+ *    Error message.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+std::optional<std::string> doInsertOrIgnore(sqlite3*           db,
+                                            const std::string& attached_as,
+                                            const std::string& table_name);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * doDetach
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Detaches the attached database. This should only be used for merging
+ *    database rows.
+ *
+ * Takes:
+ * -> db:
+ *    The open SQLite database with an attached database.
+ * -> attached_as:
+ *    The key to access the attached database with (XYZ.PEERS, XYZ.FILES).
+ *
+ * Returns:
+ * -> On success:
+ *    std::nullopt
+ * -> On failure:
+ *    Error message.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+std::optional<std::string> doDetach(sqlite3*           db,
+                                    const std::string& attached_as);
+
 } //dfd

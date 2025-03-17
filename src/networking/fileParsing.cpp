@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
-#include <iostream>
 #include <openssl/evp.h>
 
 namespace dfd {
@@ -235,6 +234,14 @@ int saveFile(std::unique_ptr<std::ofstream> file) {
     return EXIT_SUCCESS;
 }
 
+int deleteFile(const std::string& f_path) {
+    if (!std::filesystem::exists(f_path))
+        return EXIT_FAILURE;
+    std::filesystem::remove(f_path);
+    if (std::filesystem::exists(f_path))
+        return EXIT_FAILURE;
+    return EXIT_SUCCESS;
+}
 
 union DigestMap {
     uint64_t uuid;
