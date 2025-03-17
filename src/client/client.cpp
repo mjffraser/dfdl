@@ -139,7 +139,7 @@ int connectToServer(const SourceInfo connect_to) {
     std::cout << "Client socket_fd = " << client_socket_fd
               << ", ephemeral port = " << ephemeral_port << std::endl;
 
-    if (connect(client_socket_fd, connect_to) == -1) {
+    if (tcp::connect(client_socket_fd, connect_to) == -1) {
         std::cerr << "Failed to connect to server ("
                   << connect_to.ip_addr << ":" << connect_to.port << ").\n";
         closeSocket(client_socket_fd);
@@ -158,7 +158,7 @@ ssize_t recvWithTimeout(int sock, std::vector<uint8_t>& buffer) {
     tv.tv_sec  = 1;
     tv.tv_usec = 750000;
     ssize_t read;
-    read = recvMessage(sock, buffer, tv);
+    read = tcp::recvMessage(sock, buffer, tv);
     if (read < 0) {
         return -1;
     }
@@ -168,7 +168,7 @@ ssize_t recvWithTimeout(int sock, std::vector<uint8_t>& buffer) {
 
 //tries to send message, reports error and closes socket if issue occurs
 bool sendOkay(int sock, const std::vector<uint8_t>& message, const std::string& err_msg) {
-    if (sendMessage(sock, message) != EXIT_SUCCESS) {
+    if (tcp::sendMessage(sock, message) != EXIT_SUCCESS) {
         if (!err_msg.empty())
             std::cerr << err_msg << std::endl;
         closeSocket(sock);
@@ -619,7 +619,7 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
     //next we test for file existing
     if (file_path.empty()) {
         std::vector<uint8_t> fail_buff = createFailMessage("ERROR: No such file UUID: " + std::to_string(uuid));
-        sendMessage(client_socket_fd, fail_buff);
+        tcp::sendMessage(client_socket_fd, fail_buff);
         closeSocket(client_socket_fd);
         return;
     }
@@ -633,7 +633,7 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
     std::optional<ssize_t> file_size_opt = fileSize(file_path);
     if(!file_size_opt.has_value()) {
         std::vector<uint8_t> fail_vec = createFailMessage("ERROR: Could not determine size of: " + file_name);
-        sendMessage(client_socket_fd, fail_vec);
+        tcp::sendMessage(client_socket_fd, fail_vec);
         closeSocket(client_socket_fd);
         return;
     }
@@ -641,7 +641,7 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
     std::optional<size_t> num_chunks = fileChunks(file_size_opt.value());
     if (!num_chunks.has_value()) {
         std::vector<uint8_t> fail_buff = createFailMessage("ERROR: Failed to compute number of chunks for: " + file_name);
-        sendMessage(client_socket_fd, fail_buff);
+        tcp::sendMessage(client_socket_fd, fail_buff);
         closeSocket(client_socket_fd);
         return;
     }
@@ -658,7 +658,7 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
 
         //client is done
         if (client_req[0] == FINISH_DOWNLOAD) {
-            sendMessage(client_socket_fd, {FINISH_OK});
+            tcp::sendMessage(client_socket_fd, {FINISH_OK});
             closeSocket(client_socket_fd);
             return;
         }
@@ -673,7 +673,7 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
         auto read = packageFileChunk(file_path, chunk_buff, chunk_id);
         if (!read) {
             auto fail_buff = createFailMessage("Sorry, file appears to be unavailable.");
-            sendMessage(client_socket_fd, fail_buff);
+            tcp::sendMessage(client_socket_fd, fail_buff);
             closeSocket(client_socket_fd);
             return;
         }
