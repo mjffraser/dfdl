@@ -3,12 +3,10 @@
 #include <thread>
 
 //imports from project dfd::
+#include "server/internal/syncing.hpp"
 #include "sourceInfo.hpp"
 #include "networking/socket.hpp"
 #include "server/internal/database/db.hpp"
-#include "server/internal/database/internal/types.hpp"
-#include "server/internal/database/internal/queries.hpp"
-#include "server/internal/database/internal/tableInfo.hpp"
 #include "networking/messageFormatting.hpp"
 
 //other imports std::
@@ -18,157 +16,182 @@
 #include <condition_variable>
 #include <atomic>
 
-namespace dfd{
+namespace dfd {
 
-//mutex for db
-std::mutex dbMutex;
-Database* db = nullptr;  //global shared database instance
+//DATABASE
+std::mutex db_mutex;
+Database* db = nullptr;
 
-//structure to store each job
-//used to make offshoot threads to handle a given job
 struct Job {
     //file descriptor of the client
-    int cfd;
+    int client_sock;
     //message sent by the client
-    std::vector<uint8_t> message;
+    std::vector<uint8_t> client_message;
 };
 
 //queue to hold pending jobs and its mutex
-std::queue<Job> jobQ;
-std::mutex jobMutex;
+std::queue<Job> job_q;
+std::mutex job_mutex;
 
 //signals worker threads that a job is avalable
-std::condition_variable jobReady;
+std::condition_variable job_ready;
 //atomic flag to control main server loop (atomic prevents need of mutex)
-std::atomic<bool> serverRunning(true);
+std::atomic<bool> server_running(true);
 
+//global vector storing pairs of known server IPs and ports
+std::vector<SourceInfo> known_servers;
+//our sockets Source info
+SourceInfo our_server;
+
+//ekko thread stuff
+std::mutex ekko_mutex;
+//when ekkoing is done this will be notified
+std::condition_variable ekko_flag;
 
 
 //these threads are spawned on each accepted connection and handle said connection
 void handleConnectionThread(int client_fd) {
-    //2.5 sec time out (changable in future) timeval is a structure explained here to set to differing times: http://www.ccplusplus.com/2011/09/struct-timeval-in-c.html (website is unsecure btw)
     struct timeval timeout;
     timeout.tv_sec  = 5;
     timeout.tv_usec = 0;
-    //buffer
-    std::vector<uint8_t> buffer;
+    std::vector<uint8_t> buffer; //msg buff
 
     //store the recved msg by calling it with the above time out n buffer
-    ssize_t readToCheck = recvMessage(client_fd, buffer, timeout);
+    ssize_t read = recvMessage(client_fd, buffer, timeout);
     //check if recv failed
-    if (readToCheck <= 0) {
-        std::cerr << "no message or timeout";
+    if (read <= 0) { //-1 on err
+        std::cerr << "no message or timeout" << std::endl;
         closeSocket(client_fd);
         return;
     }
 
     {
-        std::lock_guard<std::mutex> lock(jobMutex);
+        std::lock_guard<std::mutex> lock(job_mutex);
         //create a job on the worker queue with this connections file descriptor and buffer containing msg
-        jobQ.push({client_fd, buffer});
+        job_q.push({client_fd, buffer});
     }
     
     //notify workers that a job is avalable
-    jobReady.notify_one();
+    job_ready.notify_one();
 }
-
 
 //worker thread, needs message handelling
 void workerThread() {
-    while (serverRunning) {
+    while (server_running) {
         //the job this thread is working on
         Job job;
         //mutex lock block (mutex for job q)
         {
-            std::unique_lock<std::mutex> lock(jobMutex);
+            std::unique_lock<std::mutex> lock(job_mutex);
             
             //wait for job q to have a job or shutdown
-            jobReady.wait(lock, [] { return !jobQ.empty() || !serverRunning; });
-            //check if shutdown case broke the wait (aka server ! running) and break
-            if (!serverRunning) {
+            job_ready.wait(lock, [] { return !job_q.empty() || !server_running; });
+            //check if shutdown case broke the wait (aka !server_running) and break
+            if (!server_running) {
                 break;
             } else {
                 //store job in from job Q
-                job = jobQ.front();
+                job = job_q.front();
                 //remove job in from job Q
-                jobQ.pop();
+                job_q.pop();
             }
         }
 
-
-        /////////////////////MESSAGE HANDELLING/////////////////
+        /////////////////////MESSAGE HANDLING/////////////////
         //get the message to handle
-        std::vector<uint8_t> initial = job.message;
-        std::uint8_t& decisionByte = initial.front();
-        //create responce (change default to failure)
+        std::vector<uint8_t>& client_request = job.client_message;
+        std::uint8_t& decision_byte = client_request.front();
+        //create response (change default to failure)
         std::vector<uint8_t> response;
         //lock db mutex (delete if read/write leader election happens)
         {
-            std::lock_guard<std::mutex> lock(dbMutex);
-            if (decisionByte == INDEX_REQUEST){
-                auto fileID = parseIndexRequest(initial);
-                //temp to hold exit code
-                auto tempHold = db->indexFile(fileID.uuid, fileID.indexer, fileID.f_size);
-                //check if operation had an EXIT_FAILURE and if not make responce the proper OK
-                if (tempHold == EXIT_FAILURE) {
-                    response = createFailMessage(db->sqliteError());
-                } else {
-                    response.push_back(INDEX_OK);
-                }
-       
-            } else if (decisionByte == DROP_REQUEST){
-                auto uidPair = parseDropRequest(initial);
-                //fit the secound thing in pair into the structure
-                SourceInfo structForDropIndex; 
-                structForDropIndex.peer_id = uidPair.second;
-
-                //temp to hold exit code
-                auto tempHold = db->dropIndex(uidPair.first, structForDropIndex);
-                //check if operation had an EXIT_FAILURE and if not make responce the proper OK
-                if (tempHold == EXIT_FAILURE){
-                    response = createFailMessage(db->sqliteError());
-                }else{
-                    response.push_back(DROP_OK);
-                }
-       
-            } else if (decisionByte == REREGISTER_REQUEST){
-                auto sourceInfo = parseReregisterRequest(initial);
-                //temp to hold exit code
-                auto tempHold = db->updateClient(sourceInfo);
-                //check if operation had an EXIT_FAILURE and if not make responce the proper OK
-                if (tempHold == EXIT_FAILURE){
-                    response = createFailMessage(db->sqliteError());
-                }else{
-                    response.push_back(REREGISTER_OK);
+            std::lock_guard<std::mutex> lock(db_mutex);
+            switch (decision_byte) {
+                case INDEX_REQUEST: {
+                    FileId file_id = parseIndexRequest(client_request);
+                    if (EXIT_SUCCESS != db->indexFile(file_id.uuid, 
+                                                      file_id.indexer, 
+                                                      file_id.f_size))
+                        response = createFailMessage(db->sqliteError()); 
+                    else
+                        response = {INDEX_OK}; //ack-byte
+                    break;
                 }
 
-            } else if (decisionByte == SOURCE_REQUEST){
-                auto fileUuid = parseSourceRequest(initial);
-                std::vector<dfd::SourceInfo> buffer; 
-                //temp to hold exit code
-                auto tempHold = db->grabSources(fileUuid, buffer);
-
-                if (tempHold == EXIT_FAILURE) {
-                    response = createFailMessage(db->sqliteError());
-                } else {
-                    response = createSourceList(buffer);
+                case DROP_REQUEST: {
+                    //see messageFormatting for IndexUuidPair
+                    IndexUuidPair uuids = parseDropRequest(client_request);
+                    if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second))
+                        response = createFailMessage(db->sqliteError());
+                    else
+                        response = {DROP_OK};
+                    break;
                 }
 
-            } else {
-                //should never happen in standard run
-                response = createFailMessage("invalid message sent");
+                case REREGISTER_REQUEST: {
+                    SourceInfo client_info = parseReregisterRequest(client_request);
+                    if (EXIT_SUCCESS != db->updateClient(client_info))
+                        response = createFailMessage(db->sqliteError());
+                    else
+                        response = {REREGISTER_OK};
+                    break;   
+                }
+
+                case SOURCE_REQUEST: {
+                    uint64_t f_uuid = parseSourceRequest(client_request);
+                    std::vector<SourceInfo> indexers;
+                    if (EXIT_SUCCESS != db->grabSources(f_uuid, indexers))
+                        response = createFailMessage(db->sqliteError());
+                    else
+                        response = createSourceList(indexers);
+                    break;
+                }
+
+                case SERVER_REG: {
+                    SourceInfo new_server = parseNewServerReg(client_request);
+                    ssize_t registered_with = forwardRegistration(client_request, known_servers);
+                    //NEEDS CHECKS FOR DEAD SERVERS HERE TODO
+                    if (registered_with < 0) {
+                        response = createFailMessage("I appear to be a dead server myself?");
+                    } else {
+                        response = createServerRegResponse(known_servers);
+                        known_servers.push_back(new_server);
+                    }
+                    break;
+                }
+
+                case FORWARD_SERVER_REG: {
+                    SourceInfo new_server = parseForwardServerReg(client_request);
+                    known_servers.push_back(new_server);
+                    response = {FORWARD_SERVER_OK};
+                    break;
+                }
+
+                case CLIENT_REG: {
+                    response = createServerRegResponse(known_servers);
+                    break;
+                }
+
+                default:
+                    response = createFailMessage("Invalid message type.");
             }
         }
-        //send responce to client (response is wrong meessage handling will implement)
-        sendMessage(job.cfd, response);
+        
+        std::cout << "[DEBUG] SERVERS:" << std::endl;
+        for (auto& s : known_servers) {
+            std::cout << s.ip_addr << " " << s.port << std::endl;
+        }
+
+
+        //send response to client
+        sendMessage(job.client_sock, response);
 
         //close the jobs socket (with client file directory)
-        closeSocket(job.cfd);
+        closeSocket(job.client_sock);
     }
 }
 
-//main server front end that loks for connections and handles proccess
-void socketThread(const uint16_t port) {
+void listenThread(const uint16_t port) {
     auto socket = openSocket(true, port);
     if (!socket) {
         //handle fail to open
@@ -177,85 +200,155 @@ void socketThread(const uint16_t port) {
     }
 
     //server file descriptor
-    int sfd = socket->first;
+    int server_fd = socket->first;
     std::cout << "listening on port " << socket->second << "\n\n";
 
     //start listening with backlog of 10 (number is unimportant)
-    if (listen(sfd, 10) == EXIT_FAILURE) {
+    if (listen(server_fd, 10) == EXIT_FAILURE) {
         std::cerr << "listen failed\n";
-        closeSocket(sfd);
+        closeSocket(server_fd);
         return;
     }
 
-    while (serverRunning) {
+    //////////////////
+    //TODL:
+    //errorhandle below, make IP default to local host, midhigh prio
+    //////////////////
+    //set our own server info
+    our_server.ip_addr = "127.0.0.1"; //TODO: FAULT TOLERANCE
+    our_server.port = port;
+
+    while (server_running) {
         SourceInfo clientInfo;
         
         //accept new client connection
-        int cfd = accept(sfd, clientInfo);
+        int client_sock = accept(server_fd, clientInfo);
         
-        if (cfd < 0) {
-            std::cerr << "client unables to be accepted\n";
+        if (client_sock < 0) {
+            std::cerr << "Client disconnected.\n";
         } else {
-            std::cout << "served client: " << clientInfo.ip_addr << ":" << clientInfo.port << "\n";
+            std::cout << "Served client: " << clientInfo.ip_addr << ":" << clientInfo.port << "\n";
             //spawn a thread that handles the connection
             //keep in mind detached threads can be bad we may want a threadpool
-            std::thread(handleConnectionThread, cfd).detach();
+            std::thread(handleConnectionThread, client_sock).detach();
         }
-        
     }
     
     //close up socket with api
-    closeSocket(sfd);
+    closeSocket(server_fd);
 }
 
+void setupThread(SourceInfo known_server) {
+    // Extract IP and port
+    std::string server_ip = known_server.ip_addr;
+    uint8_t server_port   = known_server.port;
 
+    //open client TCP socket (unsure if server_port is right or if I should default this to somethin)
+    auto socket = openSocket(false, server_port);
+    if (!socket) {
+        std::cerr << "Failed to open client socket for setup.\n";
+        return;
+    }
+
+    //our client socket we are using
+    int client_sock = socket.value().first;
+
+    //attempt to connect and catch any errors and output error
+    if (connect(client_sock, known_server) == EXIT_FAILURE) {
+        std::cerr << "couldent connect to sister server @ IP:" << server_ip << "PORT:" << server_port << "\n";
+        closeSocket(client_sock);
+        return;
+    }
+    //connection successful
+    std::cout << "connected to sister server @ IP:" << server_ip << "PORT:" << server_port << "\n";
+
+    //send initial_message setup request message
+    std::vector<uint8_t> setup_message = createNewServerReg(our_server);
+    if (sendMessage(client_sock, setup_message) == EXIT_FAILURE) {
+        std::cerr << "Failed to send setup message.\n";
+        closeSocket(client_sock);
+        return;
+    }
+
+    //buffer for response
+    std::vector<uint8_t> buffer;
+    timeval timeout = {5, 0};
+    ssize_t read_bytes = recvMessage(client_sock, buffer, timeout);
+    //errorcheck
+    if (read_bytes <= 0) {
+        std::cerr << "no response from known server.\n";
+        closeSocket(client_sock);
+        return;
+    }
+
+    //known_servers = all known severs of connected server+the connected server
+    known_servers = parseServerRegResponse(buffer);
+    known_servers.push_back(known_server);
+
+    std::cout << "Registered with server network." << std::endl;
+    std::cout << "[DEBUG] SERVERS:" << std::endl;
+    for (auto& s : known_servers) {
+        std::cout << s.ip_addr << " " << s.port << std::endl;
+    }
+
+    //close socket
+    closeSocket(client_sock);
+}
 
 ///////main function
-//setup db -> start server and worker threads -> close up
-int mainServer(const uint16_t port) {
-    //mutex lock db (may be unneeded in future)
-    {
-        std::lock_guard<std::mutex> lock(dbMutex);
-        //create new db w api to global pointer
-        db = new Database("name.db");
+int run_server(const uint16_t     port, 
+               const std::string& connect_ip, 
+               const uint16_t     connect_port) {
+    //if we're connecting somewhere to register as a new server
+    SourceInfo known_server;
+    if (!connect_ip.empty()) {
+        known_server.ip_addr = connect_ip;
+        known_server.port    = connect_port;
     }
+    
+    //open database
+    db = new Database("name.db");
+
     //output msg
     std::cout << "DB setup complete\n";
 
-    //start the socket thread (will spawn handleConnectionThreads on each connection)
-    std::thread socketT(socketThread, port);
+    //start the listen thread
+    //all new connections are received here, and handed off for processing
+    std::thread listener_thread(listenThread, port);
+
     //vector of threads containing our workers
     std::vector<std::thread> workers;
     
     //create worker threads (currently 4 as example did, but number has no meaning)
     for (int i = 0; i < 4; ++i) {
-        //push a new worker thread onto vetor i times
         workers.push_back(std::thread(workerThread));
     }
 
-    ///////////CLEANUP///////////
-    //wait for socket thread to finish and join it
-    socketT.join();
-    std::cout << "cleanup start\n";
-    //signal workers to be done
-    serverRunning = false;
-    //notify every worker (since server running is ! this will break them all out of loop)
-    jobReady.notify_all();
-    
-    // iterate through vector end all workers (after waiting for em to finish via join)
-    for (int i = 0; i < workers.size(); i++) {
-        workers[i].join();
+    //start setup thread with known server *only if a known server was provided*
+    std::thread setup_thread;
+    if (!known_server.ip_addr.empty()) {
+        setup_thread = std::thread(setupThread, known_server);
+        setup_thread.join();
     }
 
-    //once again db mutex lock may be unneeded
-    {
-        std::lock_guard<std::mutex> lock(dbMutex);
-        //clear db instance
-        delete db;
-        db = nullptr;
-    }
+    ///////////CLEANUP///////////
+    //stop listener
+    listener_thread.join();
+    std::cout << "Cleaning up...\n";
+    //signal workers to be done
+    server_running = false;
+    //notify every worker (since server running is false this will break them all out of loop)
+    job_ready.notify_all();
     
-    std::cout << "cleanup comple server shutdown\n";
+    // iterate through vector end all workers (after waiting for em to finish via join)
+    for (int i = 0; i < workers.size(); i++)
+        workers[i].join();
+
+    //close db
+    delete db;
+    
+    std::cout << "Cleanup complete. Server shutting down...\n";
     return 0;
 }
+
 }//dfd

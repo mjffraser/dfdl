@@ -16,6 +16,7 @@ set(LIB_SRC
 set(SERVER_SRC
     src/server/internal/database/db.cpp
     src/server/internal/database/internal/queries.cpp
+    src/server/internal/syncing.cpp
     src/server/server.cpp
 )
 

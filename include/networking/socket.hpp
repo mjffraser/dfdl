@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <sys/types.h>
 #include <utility>
 #include <vector>
@@ -9,6 +10,22 @@
 namespace dfd {
 
 struct SourceInfo;
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * getMyPublicIP
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Returns this machines public facing IPv4 address via curl.
+ *
+ * Returns:
+ * -> On success:
+ *    A string with the IPv4 address.
+ * -> On failure:
+ *    An empty string.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+std::string getMyPublicIP();
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

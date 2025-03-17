@@ -169,4 +169,36 @@ std::optional<std::string> doDelete(sqlite3*                 db,
     return std::nullopt;
 }
 
+std::optional<std::string> doAttach(sqlite3*           db,
+                                    const std::string& to_attach,
+                                    const std::string& attach_as) {
+    std::string query = "ATTACH DATABASE '" + to_attach + "' as '" + attach_as + "';";
+    int res = sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    if (res != SQLITE_OK)
+        return sqlite3_errmsg(db);
+    return std::nullopt;
+}
+
+std::optional<std::string> doInsertOrIgnore(sqlite3*           db,
+                                            const std::string& attached_as,
+                                            const std::string& table_name) {
+    std::string query = "INSERT OR IGNORE INTO main." + table_name + 
+                        " SELECT * FROM " + attached_as + "." + table_name + ";";
+
+    int res = sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr); 
+    if (res != SQLITE_OK)
+        return sqlite3_errmsg(db);
+    return std::nullopt;
+}
+
+std::optional<std::string> doDetach(sqlite3*           db,
+                                    const std::string& attached_as) {
+    std::string query = "DETACH DATABASE " + attached_as + ";";
+
+    int res = sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    if (res != SQLITE_OK)
+        return sqlite3_errmsg(db);
+    return std::nullopt;
+}
+
 } //dfd
