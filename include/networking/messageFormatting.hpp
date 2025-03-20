@@ -72,13 +72,17 @@ std::string parseFailMessage(const std::vector<uint8_t>& fail_message);
 
 //SERVER MESSAGE CODES AND FUNCTIONS
 inline constexpr uint8_t INDEX_REQUEST      = 0x01;
+inline constexpr uint8_t INDEX_FORWARD      = 0x21;
 inline constexpr uint8_t INDEX_OK           = 0x02;
 inline constexpr uint8_t DROP_REQUEST       = 0x03;
+inline constexpr uint8_t DROP_FORWARD       = 0x23;
 inline constexpr uint8_t DROP_OK            = 0x04;
 inline constexpr uint8_t REREGISTER_REQUEST = 0x05;
+inline constexpr uint8_t REREGISTER_FORWARD = 0x25;
 inline constexpr uint8_t REREGISTER_OK      = 0x06;
 inline constexpr uint8_t SOURCE_REQUEST     = 0x07;
 inline constexpr uint8_t SOURCE_LIST        = 0x08;
+inline constexpr uint8_t FORWARD_OK         = 0x2F;
 
 //small wrapper struct for passing all info needed to id
 //file and indexer
@@ -660,5 +664,74 @@ int createForwardServerReg(std::vector<uint8_t>& new_server_message);
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 SourceInfo parseForwardServerReg(const std::vector<uint8_t>& forward_reg_message);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * createForwardIndes
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Takes a INDEX_REQUEST message, and modifies it's message code to
+ *    INDEX_FORWARD.
+ *
+ * -> new request type used to ekko requests without gettting an ekko back.
+ *
+ * Takes:
+ * -> new_index:
+ *    A message received who's std::vector::front references the INDEX_REQUEST code.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCCESS
+ * -> On failure:
+ *    EXIT_FAILURE
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int createForwardIndex(std::vector<uint8_t>& new_index);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * createForwardDrop
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Takes a DROP_REQUEST message, and modifies it's message code to
+ *    DROP_FORWARD.
+ *
+ * -> new request type used to ekko requests without gettting an ekko back.
+ *
+ * Takes:
+ * -> new_drop:
+ *    A message received who's std::vector::front references the DROP_REQUEST code.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCCESS
+ * -> On failure:
+ *    EXIT_FAILURE
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int createForwardDrop(std::vector<uint8_t>& new_drop);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * createForwardRereg
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Takes a REREGISTER_REQUEST message, and modifies it's message code to
+ *    REREGISTER_FORWARD.
+ *
+ * -> new request type used to ekko requests without gettting an ekko back.
+ *
+ * Takes:
+ * -> new_rereg:
+ *    A message received who's std::vector::front references the REREGISTER_REQUEST code.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCCESS
+ * -> On failure:
+ *    EXIT_FAILURE
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int createForwardRereg(std::vector<uint8_t>& new_rereg);
 
 } //dfd

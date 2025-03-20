@@ -82,20 +82,10 @@ void handleConnectionThread(int client_fd) {
     
     //notify workers that a job is avalable
     job_ready.notify_one();
-    ///////////////////////////
-    //TODO:
-    //recive responce from worker, so that task can be verified
-    //trigger leader elections if needed, potentially respawning a worker
-    ///////////////////////////
 }
 
 //worker thread, needs message handelling
 void workerThread() {
-    //////////////////////////////
-    //TODO:
-    //make a leader
-    //write thread and 3 reads
-    //////////////////////////////
     //////////////////////////////
     //TODL:
     //Race condition on server initalization
@@ -121,11 +111,6 @@ void workerThread() {
         }
 
         /////////////////////MESSAGE HANDLING/////////////////
-        //////////////////////////
-        //TODO:
-        //Allow all message types to have ekkos
-        //delist server from known if ekko fails
-        //////////////////////////
         //get the message to handle
         std::vector<uint8_t>& client_request = job.client_message;
         std::uint8_t& decision_byte = client_request.front();
@@ -136,6 +121,21 @@ void workerThread() {
             std::lock_guard<std::mutex> lock(db_mutex);
             switch (decision_byte) {
                 case INDEX_REQUEST: {
+                    FileId file_id = parseIndexRequest(client_request);
+                    auto failed_servers = forwardIndexRequest(client_request, known_servers);
+                    if (EXIT_SUCCESS != db->indexFile(file_id.uuid, 
+                                                      file_id.indexer, 
+                                                      file_id.f_size))
+                        response = createFailMessage(db->sqliteError()); 
+                    else
+                        response = {INDEX_OK}; //ack-byte
+
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+                    break;
+                }
+                case INDEX_FORWARD: {
                     FileId file_id = parseIndexRequest(client_request);
                     if (EXIT_SUCCESS != db->indexFile(file_id.uuid, 
                                                       file_id.indexer, 
@@ -149,6 +149,20 @@ void workerThread() {
                 case DROP_REQUEST: {
                     //see messageFormatting for IndexUuidPair
                     IndexUuidPair uuids = parseDropRequest(client_request);
+                    auto failed_servers = forwardDropRequest(client_request, known_servers);
+                    if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second))
+                        response = createFailMessage(db->sqliteError());
+                    else
+                        response = {DROP_OK};
+                    
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+                    break;
+                }
+                case DROP_FORWARD: {
+                    //see messageFormatting for IndexUuidPair
+                    IndexUuidPair uuids = parseDropRequest(client_request);
                     if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second))
                         response = createFailMessage(db->sqliteError());
                     else
@@ -157,6 +171,19 @@ void workerThread() {
                 }
 
                 case REREGISTER_REQUEST: {
+                    SourceInfo client_info = parseReregisterRequest(client_request);
+                    auto failed_servers = forwardReregRequest(client_request, known_servers);
+                    if (EXIT_SUCCESS != db->updateClient(client_info))
+                        response = createFailMessage(db->sqliteError());
+                    else
+                        response = {REREGISTER_OK};
+                    
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+                    break;
+                }
+                case REREGISTER_FORWARD: {
                     SourceInfo client_info = parseReregisterRequest(client_request);
                     if (EXIT_SUCCESS != db->updateClient(client_info))
                         response = createFailMessage(db->sqliteError());
@@ -178,7 +205,6 @@ void workerThread() {
                 case SERVER_REG: {
                     SourceInfo new_server = parseNewServerReg(client_request);
                     ssize_t registered_with = forwardRegistration(client_request, known_servers);
-                    //NEEDS CHECKS FOR DEAD SERVERS HERE TODO
                     if (registered_with < 0) {
                         response = createFailMessage("I appear to be a dead server myself?");
                     } else {
@@ -385,10 +411,7 @@ void setupThread(SourceInfo known_server) {
     closeSocket(client_sock);
 }
 
-///////////////////////////////
-//TODO:
-//add a listing checkup and timeout function
-///////////////////////////////
+
 ///////main function
 int run_server(const uint16_t     port, 
                const std::string& connect_ip, 

@@ -97,7 +97,7 @@ FileId parseIndexRequest(const std::vector<uint8_t>& index_message) {
     FileId f_id(0, SourceInfo(), 0);
     if (index_message.size() != 31) {
         return f_id;
-    } else if (*index_message.begin() != INDEX_REQUEST) {
+    } else if (*index_message.begin() != INDEX_REQUEST && *index_message.begin() != INDEX_FORWARD) {
         return f_id;
     }
 
@@ -142,7 +142,8 @@ IndexUuidPair parseDropRequest(const std::vector<uint8_t>& drop_message) {
     IndexUuidPair pair(0,0);
     if (drop_message.size() != 17)
         return pair;
-    else if (*drop_message.begin() != DROP_REQUEST)
+    else if (*drop_message.begin() != DROP_REQUEST && *drop_message.begin() != DROP_FORWARD)
+
         return pair;
 
     size_t offset = 1;
@@ -181,7 +182,7 @@ SourceInfo parseReregisterRequest(const std::vector<uint8_t>& reregister_message
     SourceInfo si; si.port = 0;
     if (reregister_message.size() != 15)
         return si;
-    else if (*reregister_message.begin() != REREGISTER_REQUEST)
+    else if (*reregister_message.begin() != REREGISTER_REQUEST && *reregister_message.begin() != REREGISTER_FORWARD)
         return si;
 
     size_t offset = 1;
@@ -549,6 +550,33 @@ SourceInfo parseForwardServerReg(const std::vector<uint8_t>& forward_reg_message
         si.port = 0;
 
     return si;
+}
+
+int createForwardIndex(std::vector<uint8_t>& new_index) {
+    if (new_index.size() < 1)
+        return EXIT_FAILURE;
+    if (*new_index.begin() != INDEX_REQUEST)
+        return EXIT_FAILURE;
+    new_index[0] = INDEX_FORWARD;
+    return EXIT_SUCCESS;
+}
+
+int createForwardDrop(std::vector<uint8_t>& new_drop) {
+    if (new_drop.size() < 1)
+        return EXIT_FAILURE;
+    if (*new_drop.begin() != DROP_REQUEST)
+        return EXIT_FAILURE;
+    new_drop[0] = DROP_FORWARD;
+    return EXIT_SUCCESS;
+}
+
+int createForwardRereg(std::vector<uint8_t>& new_rereg) {
+    if (new_rereg.size() < 1)
+        return EXIT_FAILURE;
+    if (*new_rereg.begin() != REREGISTER_REQUEST)
+        return EXIT_FAILURE;
+    new_rereg[0] = REREGISTER_FORWARD;
+    return EXIT_SUCCESS;
 }
 
 } //dfd
