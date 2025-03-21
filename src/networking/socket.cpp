@@ -1,5 +1,6 @@
 #include "networking/socket.hpp"
 #include "networking/internal/sockets/socketUtil.hpp"
+#include "networking/messageFormatting.hpp"
 #include "sourceInfo.hpp"
 
 #include <bits/types/struct_timeval.h>
@@ -142,7 +143,7 @@ int sendMessage(int socket_fd, const std::vector<uint8_t>& data) {
     std::memcpy(data_msg.data()+8, data.data(), data.size());
     size_t sent = 0;
     while (sent < data_msg.size()) {
-        ssize_t bytes_sent = send(socket_fd, data_msg.data()+sent, data_msg.size()-sent, 0);
+        ssize_t bytes_sent = send(socket_fd, data_msg.data()+sent, data_msg.size()-sent, MSG_NOSIGNAL);
         sent += bytes_sent;
     }
 
@@ -152,26 +153,36 @@ int sendMessage(int socket_fd, const std::vector<uint8_t>& data) {
 ssize_t recvMessage(int                   socket_fd, 
                     std::vector<uint8_t>& buffer, 
                     timeval               timeout) {
-    std::vector<uint8_t> header;
-    ssize_t header_read = recvBytes(socket_fd, header, 8, timeout);
-    if (header_read != 8) {
-        std::cout << "Not reading 8 header bytes." << std::endl;
-        return -1;
-    }
-
-    uint64_t data_len = bytesToMsgLen(header);
-
-    size_t total_recv = 0;
-    while (total_recv < data_len) {
-        ssize_t bytes_read = recvBytes(socket_fd, buffer, data_len - total_recv, timeout);
-        if (bytes_read < 0) {
+    int KEEP_ALIVE_LIMIT = 10;
+    for (int i = 0; i < KEEP_ALIVE_LIMIT; ++i) {
+        std::vector<uint8_t> header;
+        ssize_t header_read = recvBytes(socket_fd, header, 8, timeout);
+        if (header_read != 8) {
+            std::cout << "Not reading 8 header bytes." << std::endl;
             return -1;
         }
-        total_recv += bytes_read;
+        
+        //got header okay
+        uint64_t data_len = bytesToMsgLen(header);
+
+        size_t total_recv = 0;
+        while (total_recv < data_len) {
+            ssize_t bytes_read = recvBytes(socket_fd, buffer, data_len - total_recv, timeout);
+            if (bytes_read < 0) {
+                return -1;
+            }
+            total_recv += bytes_read;
+        }
+
+        buffer.resize(total_recv);
+        if (buffer.size() == 1 && *buffer.begin() == KEEP_ALIVE) {
+            buffer.clear();
+            continue;
+        }
+        return total_recv;
     }
 
-    buffer.resize(total_recv);
-    return total_recv;
+    return -1;
 }
 
 } //tcp

@@ -779,4 +779,11 @@ int createForwardDrop(std::vector<uint8_t>& new_drop);
  */
 int createForwardRereg(std::vector<uint8_t>& new_rereg);
 
+inline constexpr uint8_t ELECT_LEADER = 0x14;
+inline constexpr uint8_t ELECT_X      = 0x15;
+inline constexpr uint8_t LEADER_X     = 0x16;
+inline constexpr uint8_t BULLY        = 0x17;
+
+inline constexpr uint8_t KEEP_ALIVE = 0x18;
+
 } //dfd
