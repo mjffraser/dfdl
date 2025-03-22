@@ -83,6 +83,8 @@ inline constexpr uint8_t REREGISTER_OK      = 0x06;
 inline constexpr uint8_t SOURCE_REQUEST     = 0x07;
 inline constexpr uint8_t SOURCE_LIST        = 0x08;
 inline constexpr uint8_t FORWARD_OK         = 0x2F;
+inline constexpr uint8_t CONTROL_REQUEST    = 0xA1;
+inline constexpr uint8_t CONTROL_OK         = 0xA2;
 
 //small wrapper struct for passing all info needed to id
 //file and indexer
@@ -318,6 +320,49 @@ std::vector<uint8_t> createSourceList(const std::vector<SourceInfo>& source_list
  *    no indexers found.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 std::vector<SourceInfo> parseSourceList(std::vector<uint8_t> list_message);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * createReregisterRequest 
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Creates a buffer for writing all needed info in an unambiguous manner that
+ *    can be easily unpacked by the below function.
+ *
+ * Takes:
+ * -> faulty_client:
+ *    The SourceInfo object.
+ *
+ * Returns:
+ * -> On success:
+ *    The buffer to send over the socket.
+ * -> On failure:
+ *    An empty buffer.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+std::vector<uint8_t> createControlRequest(const SourceInfo& faulty_client);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * parseReregisterRequest 
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Unpacks the above message, and returns a SourceInfo struct of the received
+ *    data.
+ * 
+ * Takes:
+ * -> control_message:
+ *    A message received who's std::vector::front references the
+ *    CONTROL_REQUEST code.
+ *
+ * Returns:
+ * -> On success:
+ *    The SourceInfo struct. 
+ * -> On failure:
+ *    A SourceInfo struct. port will be set to 0 to indicate error.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+*/
+SourceInfo parseControlRequest(const std::vector<uint8_t>& control_message);
 
 //CLIENT MESSAGE CODES AND FUNCTIONS
 inline constexpr uint8_t DOWNLOAD_INIT      = 0x09;

@@ -84,6 +84,76 @@ void handleConnectionThread(int client_fd) {
     job_ready.notify_one();
 }
 
+void controlMsgThread(SourceInfo faulty_client) {
+    int num_of_attempts = 3;
+    bool client_reachable = false;
+    bool file_avalible = true;
+
+    // TODO - query db for file uuid 
+    // send request to server
+    uint64_t file_uuid;
+
+    // -----------------------------
+
+    auto socket = openSocket(false);
+    if (!socket) {
+        //handle fail to open
+        std::cerr << "[controlMsgThread] Failed to open socket";
+        return;
+    }
+
+    auto [sock_fd, my_port] = socket.value();
+
+    for (int i = 0; i < num_of_attempts; i++){
+        if (tcp::connect(sock_fd, faulty_client) != -1){
+            client_reachable = true;
+            break;
+        }
+    }
+
+    while (client_reachable) {
+        // attempt to download one chunk from client
+        struct timeval timeout;
+        timeout.tv_sec  = 5;
+        timeout.tv_usec = 0;
+
+        // check if file exist on client
+        std::vector<uint8_t> control_msg = createDownloadInit(file_uuid, std::nullopt);
+        tcp::sendMessage(sock_fd, control_msg);
+
+        // expect client to ack back
+        std::vector<uint8_t> request_ack;
+        if (tcp::recvMessage(sock_fd, request_ack, timeout) < 0) {
+            client_reachable = false;
+            closeSocket(sock_fd);
+            break;
+        }
+
+        // check for ack code
+        if (request_ack.size() < 1 || request_ack[0] != DOWNLOAD_CONFIRM) {
+            file_avalible = false;
+            if (request_ack[0] == FAIL) {
+                // error - client can't find file
+            } 
+            closeSocket(sock_fd);
+            break;
+        }
+
+        // terminate file download
+        tcp::sendMessage(sock_fd, {FINISH_DOWNLOAD});
+        closeSocket(sock_fd);
+        break;
+    }
+
+    if (!client_reachable || !file_avalible) {
+
+        // TODO - update db
+        //
+        // ----------------
+
+    }
+}
+
 //worker thread, needs message handelling
 void workerThread() {
     //////////////////////////////
@@ -226,6 +296,18 @@ void workerThread() {
                     break;
                 }
 
+                case CONTROL_REQUEST : {
+                    SourceInfo faulty_client = parseControlRequest(client_request);
+                    if (faulty_client.port == 0) {
+                        response = createFailMessage("Invalid message.");
+                    } else {
+                        std::thread control_thread(controlMsgThread, faulty_client);
+                        control_thread.detach();
+                        response = {CONTROL_OK};
+                    }
+                    break;
+                }
+
                 default:
                     response = createFailMessage("Invalid message type.");
             }
@@ -245,67 +327,7 @@ void workerThread() {
     }
 }
 
-void controlMsgThread(SourceInfo faulty_client, uint64_t file_uuid) {
-    auto socket = openSocket(false);
-    int num_of_attempt = 3;
-    bool client_reachable = false;
-    bool file_avalible = true;
 
-    if (!socket) {
-        //handle fail to open
-        std::cerr << "[controlMsgThread] Failed to open socket";
-        return;
-    }
-
-    auto [sock_fd, my_port] = socket.value();
-
-    for (int i = 0; i < num_of_attempt; i++){
-        if (tcp::connect(sock_fd, faulty_client) != -1){
-            client_reachable = true;
-            break;
-        }
-    }
-
-    while (client_reachable) {
-        // attempt to download one chunk from client
-        struct timeval timeout;
-        timeout.tv_sec  = 5;
-        timeout.tv_usec = 0;
-
-        // check if file exist on client
-        std::vector<uint8_t> control_msg = createDownloadInit(file_uuid, std::nullopt);
-        tcp::sendMessage(sock_fd, control_msg);
-
-        // expect client to ack back
-        std::vector<uint8_t> request_ack;
-        if (tcp::recvMessage(sock_fd, request_ack, timeout) < 0) {
-            client_reachable = false;
-            closeSocket(sock_fd);
-            break;
-        }
-
-        // check for ack code
-        if (request_ack.size() < 1 || request_ack[0] != DOWNLOAD_CONFIRM) {
-            file_avalible = false;
-            if (request_ack[0] == FAIL) {
-                // error - client can't find file
-            } 
-            closeSocket(sock_fd);
-            break;
-        }
-
-        // terminate file download
-        tcp::sendMessage(sock_fd, {FINISH_DOWNLOAD});
-        closeSocket(sock_fd);
-        break;
-    }
-
-    if (!client_reachable || !file_avalible) {
-
-        // TODO - update db
-
-    }
-}
 
 void listenThread(const uint16_t port) {
     auto socket = openSocket(true, port);
