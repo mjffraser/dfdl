@@ -13,6 +13,7 @@ static uint16_t port = 0;
 static std::string download_dir = "";
 static uint64_t    my_uuid      = 0;
 static std::string ip_addr;
+static std::string listen_addr;
 
 //server-specific
 static std::string connect_ip;
@@ -25,8 +26,7 @@ bool isServer(int argc, char **argv) {
         //shared options
         try {
             if (std::string(argv[i]) == "--port") 
-                if (i+1 < argc) 
-                    port = std::stoi(argv[i+1]);
+                if (i+1 < argc) port = std::stoi(argv[i+1]);
         } catch (...) {
             std::cerr << "USAGE: --port <#>" << std::endl;
             exit(-1);
@@ -60,10 +60,8 @@ bool isServer(int argc, char **argv) {
 
         //server to connect to
         if (std::string(argv[i]) == "--ip") {
-            if (i+1 < argc)
-                ip_addr = argv[i+1];
-            if (ip_addr == "localhost")
-                ip_addr = "127.0.0.1";
+            if (i+1 < argc)             ip_addr = argv[i+1];
+            if (ip_addr == "localhost") ip_addr = "127.0.0.1";
         }
         
         //client uuid
@@ -80,6 +78,12 @@ bool isServer(int argc, char **argv) {
         if (std::string(argv[i]) == "--download") {
             if (i+1 < argc)
                 download_dir = argv[i+1];
+        }
+
+        //listen addr
+        if (std::string(argv[i]) == "--listen") {
+            if (i+1 < argc)                 listen_addr = argv[i+1];
+            if (listen_addr == "localhost") listen_addr = "127.0.0.1";
         }
     }
 
@@ -108,13 +112,18 @@ bool isServer(int argc, char **argv) {
     if (is_client) {
         //client needs a server ip
         if (ip_addr.length() == 0) {
-            std::cerr << "Missing IP!" << std::endl;
+            std::cerr << "Missing server IP!" << std::endl;
             exit(-1);
         }
         
         //client needs a uuid TODO: move to file?
         if (my_uuid == 0) {
             std::cerr << "Please supply a uuid!" << std::endl;
+            exit(-1);
+        }
+
+        if (listen_addr.length()) {
+            std::cerr << "Missing listen IP!" << std::endl;
             exit(-1);
         }
     }
