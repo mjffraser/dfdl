@@ -2,4 +2,5 @@ build/
 cache/
 .cache/
 .vscode/
+test/
 a.out
