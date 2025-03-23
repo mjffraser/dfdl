@@ -207,6 +207,7 @@ void handleConnectionThread(int client_fd, std::vector<std::thread>& workers) {
             worker_addr.port = write_worker;
         }
 
+        std::cout << "attempt " << i << std::endl;
         if (EXIT_FAILURE == udp::sendMessage(udp_sock, worker_addr, buffer)) {
             worker_strikes[worker_id]++;
             continue;
@@ -341,7 +342,6 @@ void electionThread(int thread_ind,
                     SourceInfo my_worker; my_worker.ip_addr = "127.0.0.1"; my_worker.port = my_worker_port;
                     udp::sendMessage(listener, asker, {LEADER_X, (uint8_t)thread_ind});
                     udp::sendMessage(listener, my_worker, {LEADER_X});
-                    std::cout << "LEADER THIS=" << thread_ind << std::endl;
                 } else if (res == EXIT_SUCCESS) {
                     //if we got a message
                     if (*response.begin() == BULLY) { //we're being bullied, so we end our leader contention
@@ -423,7 +423,7 @@ void workerThread(int thread_ind, bool writer=false) {
             }
         }
 
-        if (thread_ind == 8 || thread_ind == 4)
+        if (thread_ind == 8 || thread_ind == 4 || thread_ind == 9)
             throw std::bad_alloc();
 
         struct timeval timeout;
@@ -458,32 +458,75 @@ void workerThread(int thread_ind, bool writer=false) {
             switch (*buff.begin()) {
                 case INDEX_REQUEST: {
                     FileId file_id = parseIndexRequest(buff);
+                    auto failed_servers = forwardIndexRequest(buff, known_servers);
                     if (EXIT_SUCCESS != db->indexFile(file_id.uuid, 
                                                       file_id.indexer, 
                                                       file_id.f_size))
                         response = createFailMessage(db->sqliteError()); 
                     else
                         response = {INDEX_OK}; //ack-byte
+
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+                    break;
+                }
+
+                case INDEX_FORWARD: {
+                    FileId file_id = parseIndexRequest(buff);
+                    if (EXIT_SUCCESS != db->indexFile(file_id.uuid, 
+                                                      file_id.indexer, 
+                                                      file_id.f_size))
+                        response = createFailMessage(db->sqliteError()); 
+                    else
+                        response = {FORWARD_OK}; //ack-byte
                     break;
                 }
 
                 case DROP_REQUEST: {
-                    if (writer) continue;
+
+                    //see messageFormatting for IndexUuidPair
+                    IndexUuidPair uuids = parseDropRequest(buff);
+                    auto failed_servers = forwardDropRequest(buff, known_servers);
+                    if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second))
+                        response = createFailMessage(db->sqliteError());
+                    else
+                        response = {DROP_OK};
+                    
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+                    break;
+                }
+                case DROP_FORWARD: {
                     //see messageFormatting for IndexUuidPair
                     IndexUuidPair uuids = parseDropRequest(buff);
                     if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second))
                         response = createFailMessage(db->sqliteError());
                     else
-                        response = {DROP_OK};
+                        response = {FORWARD_OK};
                     break;
                 }
 
                 case REREGISTER_REQUEST: {
                     SourceInfo client_info = parseReregisterRequest(buff);
+                    auto failed_servers = forwardReregRequest(buff, known_servers);
                     if (EXIT_SUCCESS != db->updateClient(client_info))
                         response = createFailMessage(db->sqliteError());
                     else
                         response = {REREGISTER_OK};
+                    
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+                    break;
+                }
+                case REREGISTER_FORWARD: {
+                    SourceInfo client_info = parseReregisterRequest(buff);
+                    if (EXIT_SUCCESS != db->updateClient(client_info))
+                        response = createFailMessage(db->sqliteError());
+                    else
+                        response = {FORWARD_OK};
                     break;   
                 }
 
@@ -498,6 +541,7 @@ void workerThread(int thread_ind, bool writer=false) {
                 }
 
                 case SERVER_REG: {
+                    std::cout << "registering" << std::endl;
                     SourceInfo new_server = parseNewServerReg(buff);
                     ssize_t registered_with = forwardRegistration(buff, known_servers);
                     //NEEDS CHECKS FOR DEAD SERVERS HERE TODO

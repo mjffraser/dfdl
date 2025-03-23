@@ -1,6 +1,8 @@
 #include "server/internal/syncing.hpp"
 #include "networking/messageFormatting.hpp"
 #include "networking/socket.hpp"
+#include <iostream>
+#include <ostream>
 
 namespace dfd {
 
@@ -55,9 +57,8 @@ ssize_t forwardRegistration(std::vector<uint8_t>& reg_message,
 std::vector<SourceInfo> forwardRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers,
-    uint8_t expected_code,
-    int (*createForward)(std::vector<uint8_t>&)) {
-
+                        uint8_t expected_code,
+                        int (*createForward)(std::vector<uint8_t>&)) {
     //make sure first byte is expected code
     if (*initial_msg.begin() != expected_code)
         return servers;
@@ -82,7 +83,7 @@ std::vector<SourceInfo> forwardRequest(
                 //sock cant open skip retrys
                 break;
 
-            auto [server_sock, port] = sock.value();
+            auto& [server_sock, port] = sock.value();
 
             //try connecting to the server
             if (tcp::connect(server_sock, server) == -1) {
@@ -101,11 +102,13 @@ std::vector<SourceInfo> forwardRequest(
             //prepare to receive the server's response
             std::vector<uint8_t> server_response;
             //set time out currently 2 secounds could be different
-            timeval timeout = {2, 0};
+            timeval timeout;
+            timeout.tv_sec  = 2;
+            timeout.tv_usec = 0;
 
             //receive the response with timeout
             if (tcp::recvMessage(server_sock, server_response, timeout) >= 0) {
-                //check responce
+                //check response
                 if (!server_response.empty() && *server_response.begin() == FORWARD_OK) {
                     success = true;
                 }
@@ -128,26 +131,35 @@ std::vector<SourceInfo> forwardRequest(
 std::vector<SourceInfo> forwardIndexRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers) {
-    return forwardRequest(initial_msg, servers, INDEX_REQUEST, createForwardIndex);
+    if (!servers.empty())
+        return forwardRequest(initial_msg, servers, INDEX_REQUEST, createForwardIndex);
+    return {};
 }
 
 //calls forwarding idrop version
 std::vector<SourceInfo> forwardDropRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers) {
-    return forwardRequest(initial_msg, servers, DROP_REQUEST, createForwardDrop);
+    if (!servers.empty())
+        return forwardRequest(initial_msg, servers, DROP_REQUEST, createForwardDrop);
+    return {};
 }
 
 //calls forwarding rereg version
 std::vector<SourceInfo> forwardReregRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers) {
-    return forwardRequest(initial_msg, servers, REREGISTER_REQUEST, createForwardRereg);
+    if (!servers.empty())
+        return forwardRequest(initial_msg, servers, REREGISTER_REQUEST, createForwardRereg);
+    return {};
 }
 
 //removes any SourceInfo from known_servers that appears in failed_servers
 void removeFailedServers(std::vector<SourceInfo>& known_servers,
                         const std::vector<SourceInfo>& failed_servers) {
+    for (auto& thing : failed_servers) {
+        std::cout << thing.ip_addr << " " << thing.port << " " << thing.peer_id << std::endl; 
+    }
     //iterate through known servers
     for (size_t i = 0; i < known_servers.size(); ) {
         bool match = false;
