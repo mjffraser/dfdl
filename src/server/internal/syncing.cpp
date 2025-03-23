@@ -57,15 +57,24 @@ ssize_t forwardRegistration(std::vector<uint8_t>& reg_message,
 std::vector<SourceInfo> forwardRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers,
-                        uint8_t expected_code,
-                        int (*createForward)(std::vector<uint8_t>&)) {
+                        uint8_t expected_code) {
     //make sure first byte is expected code
     if (*initial_msg.begin() != expected_code)
         return servers;
 
-    //check if create forward worked
-    if (EXIT_SUCCESS != createForward(initial_msg))
-        return servers;
+    //check if creating forward worked
+    if (expected_code == INDEX_REQUEST){
+        if (EXIT_SUCCESS != createForwardIndex(initial_msg))
+            return servers;
+    }else if (expected_code == DROP_REQUEST)
+    {
+        if (EXIT_SUCCESS != createForwardDrop(initial_msg))
+            return servers;
+    }else if (expected_code == REREGISTER_REQUEST)
+    {
+        if (EXIT_SUCCESS != createForwardRereg(initial_msg))
+            return servers;
+    }
 
     //stores failed serveres
     std::vector<SourceInfo> failed_servers;
@@ -76,7 +85,7 @@ std::vector<SourceInfo> forwardRequest(
         bool success = false;
 
         //loop X retrys (currently 2 can be changed)
-        for (int attempt = 0; attempt < 2 && !success; ++attempt) {
+        for (int a = 0; a < 2 && !success; ++a) {
             //attempt to open a client socket
             auto sock = openSocket(false, 0);
             if (!sock)
@@ -132,7 +141,7 @@ std::vector<SourceInfo> forwardIndexRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers) {
     if (!servers.empty())
-        return forwardRequest(initial_msg, servers, INDEX_REQUEST, createForwardIndex);
+        return forwardRequest(initial_msg, servers, INDEX_REQUEST);
     return {};
 }
 
@@ -141,7 +150,7 @@ std::vector<SourceInfo> forwardDropRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers) {
     if (!servers.empty())
-        return forwardRequest(initial_msg, servers, DROP_REQUEST, createForwardDrop);
+        return forwardRequest(initial_msg, servers, DROP_REQUEST);
     return {};
 }
 
@@ -150,7 +159,7 @@ std::vector<SourceInfo> forwardReregRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers) {
     if (!servers.empty())
-        return forwardRequest(initial_msg, servers, REREGISTER_REQUEST, createForwardRereg);
+        return forwardRequest(initial_msg, servers, REREGISTER_REQUEST);
     return {};
 }
 
