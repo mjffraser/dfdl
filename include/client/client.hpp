@@ -265,7 +265,7 @@ private:
     int getListeningPort();
 
     void workerThread(const uint64_t file_uuid, const std::vector<dfd::SourceInfo>& peers, size_t thread_ind);
-    void downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index);
+    bool downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index);
 
 private:
     uint64_t    my_uuid;
