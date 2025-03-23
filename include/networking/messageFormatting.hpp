@@ -332,6 +332,8 @@ std::vector<SourceInfo> parseSourceList(std::vector<uint8_t> list_message);
  * Takes:
  * -> faulty_client:
  *    The SourceInfo object.
+ * -> file_id:
+ *    The file uuid. 
  *
  * Returns:
  * -> On success:
@@ -340,7 +342,7 @@ std::vector<SourceInfo> parseSourceList(std::vector<uint8_t> list_message);
  *    An empty buffer.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-std::vector<uint8_t> createControlRequest(const SourceInfo& faulty_client);
+std::vector<uint8_t> createControlRequest(const SourceInfo& faulty_client, const uint64_t file_id);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -357,12 +359,12 @@ std::vector<uint8_t> createControlRequest(const SourceInfo& faulty_client);
  *
  * Returns:
  * -> On success:
- *    The SourceInfo struct. 
+ *    The pair of file uuid and SourceInfo struct. 
  * -> On failure:
- *    A SourceInfo struct. port will be set to 0 to indicate error.
+ *    The pair of file uuid and SourceInfo struct. port will be set to 0 to indicate error.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 */
-SourceInfo parseControlRequest(const std::vector<uint8_t>& control_message);
+std::pair<uint64_t, SourceInfo> parseControlRequest(const std::vector<uint8_t>& control_message);
 
 //CLIENT MESSAGE CODES AND FUNCTIONS
 inline constexpr uint8_t DOWNLOAD_INIT      = 0x09;

@@ -281,9 +281,9 @@ std::vector<SourceInfo> parseSourceList(std::vector<uint8_t> list_message) {
     return sources;
 }
 
-std::vector<uint8_t> createControlRequest(const SourceInfo& faulty_client) {
+std::vector<uint8_t> createControlRequest(const SourceInfo& faulty_client, const uint64_t file_id) {
     std::vector<uint8_t> reregister_buff = {CONTROL_REQUEST};
-    reregister_buff.resize(1+14); //SourceInfo is 14 bytes
+    reregister_buff.resize(1+22); //SourceInfo is 14 bytes, file_id is 8 bytes
 
     size_t offset = 1;
     int err_code  = 0;
@@ -293,6 +293,7 @@ std::vector<uint8_t> createControlRequest(const SourceInfo& faulty_client) {
     createNetworkData(reregister_buff.data(), faulty_client.port, offset, err_code);
     createNetworkData(reregister_buff.data(), faulty_client.peer_id, offset, err_code);
     createNetworkData(reregister_buff.data(), faulty_client.ip_addr, offset, err_code);
+    createNetworkData(reregister_buff.data(), file_id, offset, err_code);
 
     if (err_code != 0)
         return {};
@@ -300,12 +301,13 @@ std::vector<uint8_t> createControlRequest(const SourceInfo& faulty_client) {
     return reregister_buff;
 }
 
-SourceInfo parseControlRequest(const std::vector<uint8_t>& control_message) {
+std::pair<uint64_t, SourceInfo> parseControlRequest(const std::vector<uint8_t>& control_message) {
     SourceInfo si; si.port = 0;
-    if (control_message.size() != 15)
-        return si;
-    else if (*control_message.begin() != REREGISTER_REQUEST)
-        return si;
+    uint64_t file_id;
+    if (control_message.size() != 23)
+        return {};
+    else if (*control_message.begin() != CONTROL_REQUEST)
+        return {};
 
     size_t offset = 1;
     int err_code  = 0;
@@ -314,11 +316,14 @@ SourceInfo parseControlRequest(const std::vector<uint8_t>& control_message) {
     parseNetworkData(&si.port,    control_message.data(), offset, err_code);
     parseNetworkData(&si.peer_id, control_message.data(), offset, err_code);
     parseNetworkData(&si.ip_addr, control_message.data(), offset, err_code);
+    parseNetworkData(&file_id,    control_message.data(), offset, err_code);
 
     if (err_code != 0)
         si.port = 0;
+        file_id = 0;
 
-    return si;
+    std::pair<uint64_t, SourceInfo> pair(file_id, si);
+    return pair;
 }
 
 //CLIENT MESSAGE CODES AND FUNCTIONS

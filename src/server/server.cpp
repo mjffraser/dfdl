@@ -77,21 +77,19 @@ std::mutex            election_lock;
 std::atomic<uint16_t> election_requester = 0;
 std::atomic<int>      current_election   = 0;
 
-void controlMsgThread(SourceInfo faulty_client) {
+void controlMsgThread(SourceInfo faulty_client, uint64_t file_uuid) {
     int num_of_attempts = 3;
     bool client_reachable = false;
     bool file_avalible = true;
 
-    // TODO - query db for file uuid 
-    // send request to server
-    uint64_t file_uuid;
+    struct timeval timeout;
+    timeout.tv_sec  = 5;
+    timeout.tv_usec = 0;
 
-    // -----------------------------
-
-    auto socket = openSocket(false);
+    auto socket = openSocket(false, 0, false);
     if (!socket) {
         //handle fail to open
-        std::cerr << "[controlMsgThread] Failed to open socket";
+        std::cerr << "[controlMsgThread] Failed to open socket\n";
         return;
     }
 
@@ -104,15 +102,16 @@ void controlMsgThread(SourceInfo faulty_client) {
         }
     }
 
+    // attempt to download one chunk from client
     while (client_reachable) {
-        // attempt to download one chunk from client
-        struct timeval timeout;
-        timeout.tv_sec  = 5;
-        timeout.tv_usec = 0;
 
         // check if file exist on client
         std::vector<uint8_t> control_msg = createDownloadInit(file_uuid, std::nullopt);
-        tcp::sendMessage(sock_fd, control_msg);
+        if (EXIT_FAILURE == tcp::sendMessage(sock_fd, control_msg)) {
+            std::cerr << "[controlMsgThread] Failed to send message to client.\n";
+            closeSocket(sock_fd);
+            return;
+        }
 
         // expect client to ack back
         std::vector<uint8_t> request_ack;
@@ -140,9 +139,43 @@ void controlMsgThread(SourceInfo faulty_client) {
 
     if (!client_reachable || !file_avalible) {
 
-        // TODO - update db
-        //
-        // ----------------
+        auto updete_sock = openSocket(false, 0, false);
+        if (!updete_sock) {
+            //handle fail to open
+            std::cerr << "[controlMsgThread] Failed to open update socket\n";
+            return;
+        }
+
+        auto [updete_fd, updete_port] = updete_sock.value();
+
+        if (tcp::connect(updete_fd, our_server) < 0) {
+            std::cerr << "[controlMsgThread] Failed to connect with our server.\n";
+            closeSocket(updete_fd);
+            return;
+        }
+
+        IndexUuidPair id_pair(file_uuid, faulty_client.peer_id);
+        std::vector<uint8_t> drop_msg = createDropRequest(id_pair);
+        if (EXIT_FAILURE == tcp::sendMessage(updete_fd,drop_msg)) {
+            std::cerr << "[controlMsgThread] Failed to send message to our server.\n";
+            closeSocket(updete_fd);
+            return;
+        }
+
+        std::vector<uint8_t> update_respond;
+        if (tcp::recvMessage(updete_fd, update_respond, timeout) < 0) {
+            std::cerr << "[controlMsgThread] Failed to recv message from our server.\n";
+            closeSocket(updete_fd);
+            return;
+        }
+
+        if (update_respond[0] == FAIL) {
+            std::cerr << "[controlMsgThread]" << parseFailMessage(update_respond) << std::endl;
+        }
+
+        closeSocket(updete_fd);
+        return;
+
 
     }
 }
@@ -567,11 +600,11 @@ void workerThread(int thread_ind, bool writer=false) {
                 }
 
                 case CONTROL_REQUEST : {
-                    SourceInfo faulty_client = parseControlRequest(buff);
+                    auto [file_uuid, faulty_client] = parseControlRequest(buff);
                     if (faulty_client.port == 0) {
                         response = createFailMessage("Invalid message.");
                     } else {
-                        std::thread control_thread(controlMsgThread, faulty_client);
+                        std::thread control_thread(controlMsgThread, faulty_client, file_uuid);
                         control_thread.detach();
                         response = {CONTROL_OK};
                     }
