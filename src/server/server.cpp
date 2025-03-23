@@ -59,6 +59,14 @@ std::mutex ekko_mutex;
 //when ekkoing is done this will be notified
 std::condition_variable ekko_flag;
 
+//Globals for the race condition resolution on server boot
+//global sync flag (true if a server is being registered)
+std::mutex syncing_mutex;
+bool syncing_server = false;
+//q for potential race condition msgs
+std::mutex sync_queue_mutex;
+std::queue<std::vector<uint8_t>> sync_message_queue;
+
 #define WORKER_THREADS 10
 std::atomic<int> setup_workers          = 0;
 std::atomic<int> setup_election_workers = 0;
@@ -238,6 +246,14 @@ void handleConnectionThread(int client_fd, std::vector<std::thread>& workers) {
         } else {
             worker_id = WORKER_THREADS-1; //last id always corresponds to writer
             worker_addr.port = write_worker;
+            //this bit here adds msg to sync msg q if were syncing to help with race conditions when sending server
+            {
+                std::lock_guard<std::mutex> lock(syncing_mutex);
+                if (syncing_server) {
+                        std::lock_guard<std::mutex> qlock(sync_queue_mutex);
+                        sync_message_queue.push(buffer);
+                }
+            }
         }
 
         std::cout << "attempt " << i << std::endl;
@@ -575,15 +591,34 @@ void workerThread(int thread_ind, bool writer=false) {
                 }
 
                 case SERVER_REG: {
+                    //start recording msgs to prevent race cond
+                    {
+                        std::lock_guard<std::mutex> lock(syncing_mutex);
+                        syncing_server = true;
+                    }
                     std::cout << "registering" << std::endl;
                     SourceInfo new_server = parseNewServerReg(buff);
                     ssize_t registered_with = forwardRegistration(buff, known_servers);
-                    //NEEDS CHECKS FOR DEAD SERVERS HERE TODO
                     if (registered_with < 0) {
                         response = createFailMessage("I appear to be a dead server myself?");
                     } else {
                         response = createServerRegResponse(known_servers);
                         known_servers.push_back(new_server);
+                        if (databaseSendNS(new_server, db) != EXIT_SUCCESS) {
+                            std::cerr << "database sent to new server\n";
+                        }
+                    }
+                    //stop recording
+                    {
+                        std::lock_guard<std::mutex> lock(syncing_mutex);
+                        syncing_server = false;
+                    }
+                    //forward queued updates to the new server
+                    dfd::massWriteSend(new_server, sync_message_queue);
+                    {
+                        std::lock_guard<std::mutex> lock(sync_queue_mutex);
+                        //empty q so it works next time
+                        sync_message_queue = std::queue<std::vector<uint8_t>>();
                     }
                     break;
                 }
@@ -734,6 +769,13 @@ void setupThread(SourceInfo known_server) {
     std::cout << "[DEBUG] SERVERS:" << std::endl;
     for (auto& s : known_servers) {
         std::cout << s.ip_addr << " " << s.port << std::endl;
+    }
+
+    //recive the DB from known server
+    if (databaseReciveNS(client_sock, db) != EXIT_SUCCESS) {
+        std::cerr << "db failed to be obtained and merged in setup\n";
+    } else {
+        std::cout << "db obtained and merged in setup\n";
     }
 
     //close socket

@@ -303,3 +303,6 @@ int deleteFile(const std::string& f_path);
 uint64_t sha256Hash(const std::filesystem::path& f_path);
 
 }
+
+//MATTHEWFULL: added this for some reason I could not find it
+std::optional<std::pair<size_t, std::vector<uint8_t>>> readChunkData(const std::filesystem::path& c_path);
