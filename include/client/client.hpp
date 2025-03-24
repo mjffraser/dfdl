@@ -75,7 +75,8 @@ public:
     P2PClient(const std::string& server_ip,
               int                server_port, 
               const uint64_t     uuid,
-              const std::string& download_dir);
+              const std::string& download_dir,
+              const std::string& listen_addr);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -283,6 +284,8 @@ private:
     int              my_listen_sock;
     uint16_t         my_listen_port;
     std::thread      my_listen_thread;
+
+    std::string      my_listen_addr;
 };
 
 } // namespace dfd

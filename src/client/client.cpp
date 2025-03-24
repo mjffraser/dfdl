@@ -50,10 +50,12 @@ static void signalHandler(int signum) {
 P2PClient::P2PClient(const std::string& server_ip,
                      int                server_port, 
                      const uint64_t     id,
-                     const std::string& download_dir)
+                     const std::string& download_dir,
+                     const std::string& listen_addr)
   : am_running(true),
     my_uuid(id),
-    my_listen_sock(-1)
+    my_listen_sock(-1),
+    my_listen_addr(listen_addr)
 {
     server_info.ip_addr = server_ip;
     server_info.port    = server_port;
@@ -824,7 +826,7 @@ void P2PClient::stopAllSharing() {
 //------------------------------------------------------------------------------
 std::string P2PClient::getLocalIPAddress() {
     // Very simplistic. Usually you'd query the actual network interface.
-    return "127.0.0.1";
+    return my_listen_addr;
 }
 
 //------------------------------------------------------------------------------

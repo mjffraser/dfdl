@@ -122,7 +122,7 @@ bool isServer(int argc, char **argv) {
             exit(-1);
         }
 
-        if (listen_addr.length()) {
+        if (listen_addr.length() == 0) {
             std::cerr << "Missing listen IP!" << std::endl;
             exit(-1);
         }
@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
     }
 
     //else client
-    dfd::P2PClient client(ip_addr, port, my_uuid, download_dir);
+    dfd::P2PClient client(ip_addr, port, my_uuid, download_dir, listen_addr);
     client.run();
     return 0;
 }
