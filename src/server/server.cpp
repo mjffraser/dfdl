@@ -456,8 +456,8 @@ void workerThread(int thread_ind, bool writer=false) {
             }
         }
 
-        if (thread_ind == 8 || thread_ind == 4 || thread_ind == 9)
-            throw std::bad_alloc();
+        // if (thread_ind == 4 || thread_ind == 8)
+        //     throw std::bad_alloc();
 
         struct timeval timeout;
         timeout.tv_sec  = 0;
@@ -517,6 +517,7 @@ void workerThread(int thread_ind, bool writer=false) {
                 }
 
                 case DROP_REQUEST: {
+                    // if (writer) continue;
 
                     //see messageFormatting for IndexUuidPair
                     IndexUuidPair uuids = parseDropRequest(buff);
@@ -796,7 +797,7 @@ int run_server(const uint16_t     port,
 
     //worker restart
     while (server_running) {
-        std::this_thread::sleep_for(std::chrono::seconds(60));
+        std::this_thread::sleep_for(std::chrono::seconds(30));
         std::unique_lock<std::mutex> lock(election_lock); //dont restart while election taking place
         for (int i = 0; i < WORKER_THREADS-1; ++i) {
             if (!worker_stats.at(i)) { //thread died for any reason

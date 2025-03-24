@@ -290,7 +290,7 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
 
     std::string f_name;
     size_t chunks;
-    
+
     bool success = false;
     for (size_t peer_index = 0; peer_index < peers.size(); peer_index++) {
         int client_socket_fd = connectToServer(peers[peer_index]);
@@ -664,7 +664,6 @@ void P2PClient::listeningLoop() {
 void P2PClient::handlePeerRequest(int client_socket_fd) {
     //this is a passive listening service for an indexer
     //it should give feedback to client on error
-    return;
 
     //recieve client file request
     std::vector<uint8_t> buffer;
