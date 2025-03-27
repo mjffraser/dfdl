@@ -75,7 +75,8 @@ public:
     P2PClient(const std::string& server_ip,
               int                server_port, 
               const uint64_t     uuid,
-              const std::string& download_dir);
+              const std::string& download_dir,
+              const std::string& listen_addr);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -265,7 +266,7 @@ private:
     int getListeningPort();
 
     void workerThread(const uint64_t file_uuid, const std::vector<dfd::SourceInfo>& peers, size_t thread_ind);
-    void downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index);
+    bool downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index);
 
 private:
     uint64_t    my_uuid;
@@ -283,6 +284,8 @@ private:
     int              my_listen_sock;
     uint16_t         my_listen_port;
     std::thread      my_listen_thread;
+
+    std::string      my_listen_addr;
 };
 
 } // namespace dfd

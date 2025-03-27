@@ -26,6 +26,8 @@
 #include <thread>
 #include <mutex>
 #include <filesystem>
+#include <future>
+#include <chrono>
 
 namespace dfd
 {
@@ -48,10 +50,12 @@ static void signalHandler(int signum) {
 P2PClient::P2PClient(const std::string& server_ip,
                      int                server_port, 
                      const uint64_t     id,
-                     const std::string& download_dir)
+                     const std::string& download_dir,
+                     const std::string& listen_addr)
   : am_running(true),
     my_uuid(id),
-    my_listen_sock(-1)
+    my_listen_sock(-1),
+    my_listen_addr(listen_addr)
 {
     server_info.ip_addr = server_ip;
     server_info.port    = server_port;
@@ -139,7 +143,7 @@ int connectToServer(const SourceInfo connect_to) {
     std::cout << "Client socket_fd = " << client_socket_fd
               << ", ephemeral port = " << ephemeral_port << std::endl;
 
-    if (connect(client_socket_fd, connect_to) == -1) {
+    if (tcp::connect(client_socket_fd, connect_to) == -1) {
         std::cerr << "Failed to connect to server ("
                   << connect_to.ip_addr << ":" << connect_to.port << ").\n";
         closeSocket(client_socket_fd);
@@ -158,7 +162,7 @@ ssize_t recvWithTimeout(int sock, std::vector<uint8_t>& buffer) {
     tv.tv_sec  = 1;
     tv.tv_usec = 750000;
     ssize_t read;
-    read = recvMessage(sock, buffer, tv);
+    read = tcp::recvMessage(sock, buffer, tv);
     if (read < 0) {
         return -1;
     }
@@ -168,7 +172,7 @@ ssize_t recvWithTimeout(int sock, std::vector<uint8_t>& buffer) {
 
 //tries to send message, reports error and closes socket if issue occurs
 bool sendOkay(int sock, const std::vector<uint8_t>& message, const std::string& err_msg) {
-    if (sendMessage(sock, message) != EXIT_SUCCESS) {
+    if (tcp::sendMessage(sock, message) != EXIT_SUCCESS) {
         if (!err_msg.empty())
             std::cerr << err_msg << std::endl;
         closeSocket(sock);
@@ -284,54 +288,84 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
         return;
     }
 
-    int client_socket_fd = connectToServer(peers[0]);
-    std::vector<uint8_t> request = createDownloadInit(file_uuid, std::nullopt);
-    if (!sendOkay(client_socket_fd, request, "Failed to send download request."))
-        return;
+    std::string f_name;
+    size_t chunks;
 
-    std::vector<uint8_t> request_ack;
-    if (!recvOkay(client_socket_fd, request_ack, "No response from client."))
-        return;
+    bool success = false;
+    for (size_t peer_index = 0; peer_index < peers.size(); peer_index++) {
+        int client_socket_fd = connectToServer(peers[peer_index]);
 
-    if (!checkCode(client_socket_fd, request_ack, DOWNLOAD_CONFIRM, true))
-        return;
+        std::vector<uint8_t> request = createDownloadInit(file_uuid, std::nullopt);
+        if (!sendOkay(client_socket_fd, request, "Failed to send download request.")) {
+            continue;
+        }
 
-    auto f_info = parseDownloadConfirm(request_ack);
-    uint64_t f_size = f_info.first;
-    std::string f_name = f_info.second;
-    auto chunks = fileChunks(f_size).value();
+        std::vector<uint8_t> request_ack;
+        if (!recvOkay(client_socket_fd, request_ack, "No response from client.")) {
+            continue;
+        }
 
-    //we get the first chunk so we can start the file writing
-    std::vector<uint8_t> c_zero_req = createChunkRequest(0);
-    if (!sendOkay(client_socket_fd, c_zero_req, "Could not init download procedure with client."))
-        return;
+        if (!checkCode(client_socket_fd, request_ack, DOWNLOAD_CONFIRM, true)) {
+            continue;
+        }
 
-    std::vector<uint8_t> chunk_response;
-    if (!recvOkay(client_socket_fd, chunk_response, "Could not receive chunk for download init."))
-        return;
-    
-    if (!checkCode(client_socket_fd, chunk_response, DATA_CHUNK, "Client sent something that isn't a chunk!"))
-        return;
+        auto f_info = parseDownloadConfirm(request_ack);
+        uint64_t f_size = f_info.first;
+        f_name = f_info.second;
+        chunks = fileChunks(f_size).value();
 
-    sendOkay(client_socket_fd, {FINISH_DOWNLOAD}, "Client didn't accept download termination. Non-issue on this end.");
+        try {
+            std::vector<uint8_t> c_zero_req = createChunkRequest(0);
+            if (!sendOkay(client_socket_fd, c_zero_req, "Could not init download procedure with client."))
+                throw std::runtime_error("Could not init download procedure with client.");
 
-    DataChunk c_zero = parseDataChunk(chunk_response); 
-    if (EXIT_SUCCESS != unpackFileChunk(f_name, c_zero.second, c_zero.second.size(), c_zero.first)) {
-        std::cerr << "Couldn't unpack file chunk. Are write perms blocked?" << std::endl;
+            std::vector<uint8_t> chunk_response;
+            if (!recvOkay(client_socket_fd, chunk_response, "Could not receive chunk for download init."))
+                throw std::runtime_error("Could not receive chunk for download init.");
+
+            if (!checkCode(client_socket_fd, chunk_response, DATA_CHUNK, "Client sent something that isn't a chunk!"))
+                throw std::runtime_error("Client sent something that isn't a chunk!");
+
+            sendOkay(client_socket_fd, {FINISH_DOWNLOAD}, "Client didn't accept download termination. Non-issue on this end.");
+
+            DataChunk c_zero = parseDataChunk(chunk_response);
+            if (EXIT_SUCCESS != unpackFileChunk(f_name, c_zero.second, c_zero.second.size(), c_zero.first))
+                throw std::runtime_error("Couldn't unpack file chunk. Are write perms blocked?");
+
+            success = true;
+            closeSocket(client_socket_fd);
+            break;
+        } catch (const std::exception &e) {
+            std::cerr << "Error: " << e.what() << " Retrying with next peer...\n";
+        }
+    }
+
+    if (!success) {
+        std::cerr << "Failed to download first chunk from any peer. Aborting download.\n";
         return;
     }
 
-    //now we open our file that we're compiling
     std::unique_ptr<std::ofstream> file = openFile(f_name);
     if (!file) {
         std::cerr << "Couldn't start writing file." << std::endl;
+        return;
+    }
+
+    if (chunks == 1) {
+        // If there is only one chunk, no need for worker threads.
+        {
+            std::unique_lock<std::mutex> lock(done_chunks_mutex);
+            assembleChunk(file.get(), f_name, 0);
+        }
+        saveFile(std::move(file));
+        std::cout << "Downloaded file." << std::endl;
         return;
     }
         
     for (size_t i = 1; i < chunks; ++i) {
         remaining_chunks.push(i);
     }
-    std::cerr << "Number of chunks: " << remaining_chunks.size() << std::endl;
+    std::cerr << "Number of remaining chunks: " << remaining_chunks.size() << std::endl;
  
 
     std::vector<std::thread> workers;
@@ -356,10 +390,12 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
         );
     }
  
-    while (true && chunks != 1) {
+    while (true) {
         {
             std::unique_lock<std::mutex> lock(done_chunks_mutex);
-            chunks_ready.wait(lock, [&] { return !done_chunks.empty(); });
+            chunks_ready.wait(lock, [&] { 
+                return !done_chunks.empty(); 
+            });
             while (!done_chunks.empty()) {
                 size_t c = done_chunks.front(); done_chunks.pop();
                 assembleChunk(file.get(), f_name, c);
@@ -387,59 +423,91 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
 }
 
 void P2PClient::workerThread(const uint64_t file_uuid, const std::vector<dfd::SourceInfo>& peers, size_t thread_ind) {
-    //we want to suppress worker thread errors so they dont explode into a clients UI
-    int download_from = connectToServer(peers[thread_ind]); //needs adjusting for fault-tolerance
-    std::vector<uint8_t> request = createDownloadInit(file_uuid, std::nullopt); 
-    if (!sendOkay(download_from, request, ""))
-        return;
-    std::vector<uint8_t> request_ack;
-    if (!recvOkay(download_from, request_ack, ""))
-        return;
-    if (!checkCode(download_from, request_ack, DOWNLOAD_CONFIRM, false))
-        return;
-    auto f_info = parseDownloadConfirm(request_ack);
-    uint64_t f_size = f_info.first;
-    std::string f_name = f_info.second;
-
-    //now the client open on download_from is listening for chunk requests
-
     while (true) {
         //next chunk that needs downloading
         size_t chunk_index;
         {
-            std::unique_lock<std::mutex> lock(remaining_chunks_mutex);
             if (remaining_chunks.empty()) 
-                break;
+                return;
             chunk_index = remaining_chunks.front();
             remaining_chunks.pop();
         }
-        downloadChunk(download_from, f_name, f_size, chunk_index);
-    }
+        
+        bool success = false;
+        for (size_t index = thread_ind; index < peers.size(); index++) {
+            int download_from = connectToServer(peers[index]);
+            std::vector<uint8_t> request = createDownloadInit(file_uuid, std::nullopt);
+            if (!sendOkay(download_from, request, "IN THREAD -- Failed to send download request.")) {
+                if (index == peers.size() - 1) {
+                    index = -1;
+                }
+                continue;
+            }
+    
+            std::vector<uint8_t> request_ack;
+            if (!recvOkay(download_from, request_ack, "IN THREAD -- No response from client with port ." + std::to_string(peers[index].port))) {
+                if (index == peers.size() - 1) {
+                    index = -1;
+                }
+                continue;
+            }
+    
+            if (!checkCode(download_from, request_ack, DOWNLOAD_CONFIRM, true)) {
+                if (index == peers.size() - 1) {
+                    index = -1;
+                }
+                continue;
+            }
 
-    sendOkay(download_from, {FINISH_DOWNLOAD}, "");
-    closeSocket(download_from);
+            auto f_info = parseDownloadConfirm(request_ack);
+            uint64_t f_size = f_info.first;
+            std::string f_name = f_info.second;
+
+            if (downloadChunk(download_from, f_name, f_size, chunk_index)) {
+                success = true;
+                sendOkay(download_from, {FINISH_DOWNLOAD}, "");
+                closeSocket(download_from);
+                break;
+            }
+
+            closeSocket(download_from);
+
+            if (index == peers.size() - 1) {
+                index = -1;
+            }
+        }
+
+        if (!success) {
+            std::unique_lock<std::mutex> lock(remaining_chunks_mutex);
+            remaining_chunks.push(chunk_index);
+            return;
+        }
+    }
 }
 
-void P2PClient::downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index) {
+bool P2PClient::downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index) {
     std::vector<uint8_t> chunk_req = createChunkRequest(chunk_index);
     if (!sendOkay(client_socket_fd, chunk_req, "Could not send chunk request."))
-        return;
+        return false;
 
     std::vector<uint8_t> chunk_data;
     if (!recvOkay(client_socket_fd, chunk_data, "Could not receive chunk from client."))
-        return;
+        return false;
 
     if (!checkCode(client_socket_fd, chunk_data, DATA_CHUNK, true))
-        return;
+        return false;
 
     DataChunk dc = parseDataChunk(chunk_data);
     unpackFileChunk(f_name, dc.second, dc.second.size(), chunk_index);
-    sleep(1);
+
+    std::cout << "Downloaded chunk " << chunk_index << std::endl;
+
     {
         std::unique_lock<std::mutex> lock(done_chunks_mutex);
         done_chunks.push(chunk_index);
     }
     chunks_ready.notify_one();
+    return true;
 }
 
 //------------------------------------------------------------------------------
@@ -619,7 +687,7 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
     //next we test for file existing
     if (file_path.empty()) {
         std::vector<uint8_t> fail_buff = createFailMessage("ERROR: No such file UUID: " + std::to_string(uuid));
-        sendMessage(client_socket_fd, fail_buff);
+        tcp::sendMessage(client_socket_fd, fail_buff);
         closeSocket(client_socket_fd);
         return;
     }
@@ -633,7 +701,7 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
     std::optional<ssize_t> file_size_opt = fileSize(file_path);
     if(!file_size_opt.has_value()) {
         std::vector<uint8_t> fail_vec = createFailMessage("ERROR: Could not determine size of: " + file_name);
-        sendMessage(client_socket_fd, fail_vec);
+        tcp::sendMessage(client_socket_fd, fail_vec);
         closeSocket(client_socket_fd);
         return;
     }
@@ -641,7 +709,7 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
     std::optional<size_t> num_chunks = fileChunks(file_size_opt.value());
     if (!num_chunks.has_value()) {
         std::vector<uint8_t> fail_buff = createFailMessage("ERROR: Failed to compute number of chunks for: " + file_name);
-        sendMessage(client_socket_fd, fail_buff);
+        tcp::sendMessage(client_socket_fd, fail_buff);
         closeSocket(client_socket_fd);
         return;
     }
@@ -658,7 +726,7 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
 
         //client is done
         if (client_req[0] == FINISH_DOWNLOAD) {
-            sendMessage(client_socket_fd, {FINISH_OK});
+            tcp::sendMessage(client_socket_fd, {FINISH_OK});
             closeSocket(client_socket_fd);
             return;
         }
@@ -673,7 +741,7 @@ void P2PClient::handlePeerRequest(int client_socket_fd) {
         auto read = packageFileChunk(file_path, chunk_buff, chunk_id);
         if (!read) {
             auto fail_buff = createFailMessage("Sorry, file appears to be unavailable.");
-            sendMessage(client_socket_fd, fail_buff);
+            tcp::sendMessage(client_socket_fd, fail_buff);
             closeSocket(client_socket_fd);
             return;
         }
@@ -757,7 +825,7 @@ void P2PClient::stopAllSharing() {
 //------------------------------------------------------------------------------
 std::string P2PClient::getLocalIPAddress() {
     // Very simplistic. Usually you'd query the actual network interface.
-    return "127.0.0.1";
+    return my_listen_addr;
 }
 
 //------------------------------------------------------------------------------
