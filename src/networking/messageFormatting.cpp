@@ -320,7 +320,6 @@ std::pair<uint64_t, SourceInfo> parseControlRequest(const std::vector<uint8_t>& 
 
     if (err_code != 0)
         si.port = 0;
-        file_id = 0;
 
     std::pair<uint64_t, SourceInfo> pair(file_id, si);
     return pair;
