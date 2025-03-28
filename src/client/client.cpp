@@ -302,6 +302,7 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
 
         std::vector<uint8_t> request_ack;
         if (!recvOkay(client_socket_fd, request_ack, "No response from client.")) {
+            sendControlRequest(peers[peer_index], file_uuid, server_info);
             continue;
         }
 
@@ -320,8 +321,10 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
                 throw std::runtime_error("Could not init download procedure with client.");
 
             std::vector<uint8_t> chunk_response;
-            if (!recvOkay(client_socket_fd, chunk_response, "Could not receive chunk for download init."))
+            if (!recvOkay(client_socket_fd, chunk_response, "Could not receive chunk for download init.")) {
+                sendControlRequest(peers[peer_index], file_uuid, server_info);
                 throw std::runtime_error("Could not receive chunk for download init.");
+            }
 
             if (!checkCode(client_socket_fd, chunk_response, DATA_CHUNK, "Client sent something that isn't a chunk!"))
                 throw std::runtime_error("Client sent something that isn't a chunk!");
@@ -449,6 +452,7 @@ void P2PClient::workerThread(const uint64_t file_uuid, const std::vector<dfd::So
                 if (index == peers.size() - 1) {
                     index = -1;
                 }
+                sendControlRequest(peers[index], file_uuid, server_info);
                 continue;
             }
     
@@ -468,6 +472,8 @@ void P2PClient::workerThread(const uint64_t file_uuid, const std::vector<dfd::So
                 sendOkay(download_from, {FINISH_DOWNLOAD}, "");
                 closeSocket(download_from);
                 break;
+            } else {
+                sendControlRequest(peers[index], file_uuid, server_info);
             }
 
             closeSocket(download_from);
@@ -664,6 +670,7 @@ void P2PClient::listeningLoop() {
 void P2PClient::handlePeerRequest(int client_socket_fd) {
     //this is a passive listening service for an indexer
     //it should give feedback to client on error
+    return;
 
     //recieve client file request
     std::vector<uint8_t> buffer;
@@ -841,6 +848,27 @@ int P2PClient::getListeningPort() {
         return 0;
     }
     return ntohs(sin.sin_port);
+}
+
+//------------------------------------------------------------------------------
+// Private: send a control request to the server when a potentially dead peer 
+//          is detected
+//------------------------------------------------------------------------------
+void P2PClient::sendControlRequest(SourceInfo peer, uint64_t file_uuid, SourceInfo server_info)
+{
+    std::vector<uint8_t> control_request = createControlRequest(peer, file_uuid);
+    int server_fd = connectToServer(server_info);
+    if (!sendOkay(server_fd, control_request, "Failed to send control request."))
+    {
+    }
+    std::vector<uint8_t> control_response;
+    if (!recvOkay(server_fd, control_response, "Could not receive control response from server."))
+    {
+    }
+    if (!checkCode(server_fd, control_response, CONTROL_OK, "Control response not OK."))
+    {
+    }
+    std::cout << "Control response OK." << std::endl;
 }
 
 } // namespace dfd

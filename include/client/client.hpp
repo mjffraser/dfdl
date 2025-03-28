@@ -265,6 +265,13 @@ private:
      */
     int getListeningPort();
 
+    /*
+     * sendControlRequest
+     * Description: Sends a control request to server when client detects a
+     *              potentially dead peer DX
+     */
+    void sendControlRequest(SourceInfo peer, uint64_t file_uuid, SourceInfo server_info);
+
     void workerThread(const uint64_t file_uuid, const std::vector<dfd::SourceInfo>& peers, size_t thread_ind);
     bool downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index);
 
