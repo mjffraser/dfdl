@@ -430,6 +430,7 @@ void P2PClient::workerThread(const uint64_t file_uuid, const std::vector<dfd::So
         //next chunk that needs downloading
         size_t chunk_index;
         {
+            std::unique_lock<std::mutex> lock(remaining_chunks_mutex);
             if (remaining_chunks.empty()) 
                 return;
             chunk_index = remaining_chunks.front();
@@ -437,29 +438,30 @@ void P2PClient::workerThread(const uint64_t file_uuid, const std::vector<dfd::So
         }
         
         bool success = false;
-        for (size_t index = thread_ind; index < peers.size(); index++) {
-            int download_from = connectToServer(peers[index]);
+        size_t attempts = 0;
+        // Cycle through peers until we've tried each once.
+        size_t peer_count = peers.size();
+        size_t peer_index = thread_ind % peer_count;  // start at a different offset per thread
+        while (attempts < peer_count) {
+            int download_from = connectToServer(peers[peer_index]);
             std::vector<uint8_t> request = createDownloadInit(file_uuid, std::nullopt);
             if (!sendOkay(download_from, request, "IN THREAD -- Failed to send download request.")) {
-                if (index == peers.size() - 1) {
-                    index = -1;
-                }
+                peer_index = (peer_index + 1) % peer_count;
+                attempts++;
                 continue;
             }
     
             std::vector<uint8_t> request_ack;
-            if (!recvOkay(download_from, request_ack, "IN THREAD -- No response from client with port ." + std::to_string(peers[index].port))) {
-                if (index == peers.size() - 1) {
-                    index = -1;
-                }
-                sendControlRequest(peers[index], file_uuid, server_info);
+            if (!recvOkay(download_from, request_ack, "IN THREAD -- No response from client with port ." + std::to_string(peers[peer_index].port))) {
+                sendControlRequest(peers[peer_index], file_uuid, server_info);
+                peer_index = (peer_index + 1) % peer_count;
+                attempts++;
                 continue;
             }
     
             if (!checkCode(download_from, request_ack, DOWNLOAD_CONFIRM, true)) {
-                if (index == peers.size() - 1) {
-                    index = -1;
-                }
+                peer_index = (peer_index + 1) % peer_count;
+                attempts++;
                 continue;
             }
 
@@ -473,20 +475,17 @@ void P2PClient::workerThread(const uint64_t file_uuid, const std::vector<dfd::So
                 closeSocket(download_from);
                 break;
             } else {
-                sendControlRequest(peers[index], file_uuid, server_info);
+                sendControlRequest(peers[peer_index], file_uuid, server_info);
             }
 
             closeSocket(download_from);
-
-            if (index == peers.size() - 1) {
-                index = -1;
-            }
+            peer_index = (peer_index + 1) % peer_count;
+            attempts++;
         }
 
         if (!success) {
             std::unique_lock<std::mutex> lock(remaining_chunks_mutex);
             remaining_chunks.push(chunk_index);
-            return;
         }
     }
 }
@@ -670,8 +669,7 @@ void P2PClient::listeningLoop() {
 void P2PClient::handlePeerRequest(int client_socket_fd) {
     //this is a passive listening service for an indexer
     //it should give feedback to client on error
-    return;
-
+    
     //recieve client file request
     std::vector<uint8_t> buffer;
     if (!recvOkay(client_socket_fd, buffer, ""))
