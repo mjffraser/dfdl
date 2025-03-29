@@ -296,7 +296,7 @@ private:
     uint64_t    my_uuid;
     SourceInfo  server_info;
     bool        am_running;
-    std::string download_dir;
+    std::string my_download_dir;
 
     // For each file we share: file_id -> local filename
     // If you still have string-based "UUIDs" in your code, you can keep them

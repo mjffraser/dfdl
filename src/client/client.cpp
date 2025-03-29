@@ -56,7 +56,7 @@ P2PClient::P2PClient(const std::string& server_ip,
     my_uuid(id),
     my_listen_sock(-1),
     my_listen_addr(listen_addr),
-    download_dir(download_dir)
+    my_download_dir(download_dir)
 {
     server_info.ip_addr = server_ip;
     server_info.port    = server_port;
@@ -66,6 +66,8 @@ P2PClient::P2PClient(const std::string& server_ip,
 
     if (!download_dir.empty())
         setDownloadDir(download_dir);
+    else
+        my_download_dir = initDownloadDir().string();
 
     // Start the listening thread at initialization
     startListening();
@@ -90,6 +92,7 @@ void P2PClient::setRunning(bool running) {
 void P2PClient::run() {
     std::string command;
     std::cout << "Welcome to P2P Client!\n";
+    std::cout << "Your current download directory is: " << my_download_dir << "\n";
     std::cout << "Type 'help' for commands.\n";
 
     while (am_running) {
@@ -298,7 +301,7 @@ void P2PClient::handleIndex(const std::string& file_name) {
 // Private: handle "download <file>"
 //------------------------------------------------------------------------------
 void P2PClient::handleDownload(const uint64_t file_uuid) {
-    if (fileAlreadyExists(download_dir, file_uuid)) {
+    if (fileAlreadyExists(my_download_dir, file_uuid)) {
         std::cout << "Skipping download: File already exists in the download directory." << std::endl;
         return;
     }
