@@ -28,6 +28,7 @@
 #include <filesystem>
 #include <future>
 #include <chrono>
+#include <random>
 
 namespace dfd
 {
@@ -49,11 +50,9 @@ static void signalHandler(int signum) {
 //------------------------------------------------------------------------------
 P2PClient::P2PClient(const std::string& server_ip,
                      int                server_port, 
-                     const uint64_t     id,
                      const std::string& download_dir,
                      const std::string& listen_addr)
   : am_running(true),
-    my_uuid(id),
     my_listen_sock(-1),
     my_listen_addr(listen_addr),
     my_download_dir(download_dir)
@@ -63,6 +62,12 @@ P2PClient::P2PClient(const std::string& server_ip,
 
     g_client_ptr = this;
     signal(2, signalHandler); // SIGINT
+
+    my_uuid = initializeUUID();
+    if (my_uuid == 0) {
+        std::cerr << "Failed to initialize UUID.\n";
+        exit(EXIT_FAILURE);
+    }
 
     if (!download_dir.empty())
         setDownloadDir(download_dir);
@@ -874,6 +879,47 @@ int P2PClient::getListeningPort() {
         return 0;
     }
     return ntohs(sin.sin_port);
+}
+
+//------------------------------------------------------------------------------
+// Private: initialize client's UUID
+//------------------------------------------------------------------------------
+uint64_t P2PClient::initializeUUID() {
+    std::filesystem::path config_dir = "config";
+    std::filesystem::create_directory(config_dir);
+
+    std::filesystem::path uuid_path = config_dir / "uuid";
+    uint64_t uuid = 0;
+
+    // Try reading UUID from file
+    if (std::ifstream uuid_file(uuid_path, std::ios::binary); uuid_file) {
+        uuid_file.read(reinterpret_cast<char*>(&uuid), sizeof(uuid));
+        if (uuid_file.gcount() == sizeof(uuid)) {
+            std::cout << "Loaded UUID from config: " << uuid << std::endl;
+            return uuid;
+        }
+        std::cout << "Error: UUID file exists but does not contain valid data.\n";
+    }
+
+    // Generate new UUID
+    if (std::ifstream urandom("/dev/urandom", std::ios::binary); urandom) {
+        urandom.read(reinterpret_cast<char*>(&uuid), sizeof(uuid));
+    } 
+    if (uuid == 0) { // Fallback if /dev/urandom fails
+        std::cout << "Warning: Using random_device as fallback to generate UUID.\n";
+        std::random_device rd;
+        uuid = (static_cast<uint64_t>(rd()) << 32) | rd();
+    }
+
+    // Write new UUID to file
+    if (std::ofstream uuid_file(uuid_path, std::ios::binary | std::ios::trunc); uuid_file) {
+        uuid_file.write(reinterpret_cast<const char*>(&uuid), sizeof(uuid));
+        std::cout << "Generated new UUID and saved to config: " << uuid << std::endl;
+    } else {
+        std::cout << "Error: Could not write new UUID to config file.\n";
+    }
+
+    return uuid;
 }
 
 //------------------------------------------------------------------------------

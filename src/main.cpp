@@ -63,16 +63,6 @@ bool isServer(int argc, char **argv) {
             if (i+1 < argc)             ip_addr = argv[i+1];
             if (ip_addr == "localhost") ip_addr = "127.0.0.1";
         }
-        
-        //client uuid
-        try {
-            if (std::string(argv[i]) == "--uuid")
-                if (i+1 < argc) 
-                    my_uuid = std::stoull(argv[i+1]);
-        } catch (...) {
-            std::cerr << "USAGE: --uuid <#>";
-            exit(-1);
-        }
 
         //download dir
         if (std::string(argv[i]) == "--download") {
@@ -116,12 +106,6 @@ bool isServer(int argc, char **argv) {
             exit(-1);
         }
         
-        //client needs a uuid TODO: move to file?
-        if (my_uuid == 0) {
-            std::cerr << "Please supply a uuid!" << std::endl;
-            exit(-1);
-        }
-
         if (listen_addr.length() == 0) {
             std::cerr << "Missing listen IP!" << std::endl;
             exit(-1);
@@ -158,7 +142,7 @@ int main(int argc, char** argv) {
     }
 
     //else client
-    dfd::P2PClient client(ip_addr, port, my_uuid, download_dir, listen_addr);
+    dfd::P2PClient client(ip_addr, port, download_dir, listen_addr);
     client.run();
     return 0;
 }

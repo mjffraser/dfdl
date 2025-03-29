@@ -74,7 +74,6 @@ public:
      */
     P2PClient(const std::string& server_ip,
               int                server_port, 
-              const uint64_t     uuid,
               const std::string& download_dir,
               const std::string& listen_addr);
 
@@ -265,6 +264,16 @@ private:
      *              for incoming P2P connections.
      */
     int getListeningPort();
+
+    /*
+     * initializeUUID
+     * Description: Initializes UUID for this client. Does so by either
+     * reading into the `config/uuid` file or generating one at random.
+     *
+     * Returns:
+     * -> The UUID of this client.
+    */
+    uint64_t initializeUUID();
 
     /*
      * sendControlRequest
