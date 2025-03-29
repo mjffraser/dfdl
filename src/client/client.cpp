@@ -55,7 +55,8 @@ P2PClient::P2PClient(const std::string& server_ip,
   : am_running(true),
     my_uuid(id),
     my_listen_sock(-1),
-    my_listen_addr(listen_addr)
+    my_listen_addr(listen_addr),
+    download_dir(download_dir)
 {
     server_info.ip_addr = server_ip;
     server_info.port    = server_port;
@@ -66,7 +67,6 @@ P2PClient::P2PClient(const std::string& server_ip,
     if (!download_dir.empty())
         setDownloadDir(download_dir);
 
-    // peer_index = 0;
     // Start the listening thread at initialization
     startListening();
 }
@@ -235,7 +235,7 @@ void P2PClient::handleIndex(const std::string& file_name) {
     //get hash
     uint64_t file_id = sha256Hash(f_path);
     if (file_id == 0) {
-        std::cerr << "Failed to compute file_id for '" << file_name << "'.\n";
+        std::cerr << "Failed to compute file_id for '" << file_name << "'. Is your file empty?\n";
         return;
     }
 
@@ -298,6 +298,11 @@ void P2PClient::handleIndex(const std::string& file_name) {
 // Private: handle "download <file>"
 //------------------------------------------------------------------------------
 void P2PClient::handleDownload(const uint64_t file_uuid) {
+    if (fileAlreadyExists(download_dir, file_uuid)) {
+        std::cout << "Skipping download: File already exists in the download directory." << std::endl;
+        return;
+    }
+
     // Reset the state for a new download
     download_complete = false;
 
@@ -872,8 +877,7 @@ int P2PClient::getListeningPort() {
 // Private: send a control request to the server when a potentially dead peer 
 //          is detected
 //------------------------------------------------------------------------------
-void P2PClient::sendControlRequest(SourceInfo peer, uint64_t file_uuid, SourceInfo server_info)
-{
+void P2PClient::sendControlRequest(SourceInfo peer, uint64_t file_uuid, SourceInfo server_info) {
     std::vector<uint8_t> control_request = createControlRequest(peer, file_uuid);
     int server_fd = connectToServer(server_info);
     if (!sendOkay(server_fd, control_request, "Failed to send control request."))
@@ -887,6 +891,29 @@ void P2PClient::sendControlRequest(SourceInfo peer, uint64_t file_uuid, SourceIn
     {
     }
     std::cout << "Control response OK." << std::endl;
+}
+
+//------------------------------------------------------------------------------
+// Private: checks if a file already exists in the download directory
+//------------------------------------------------------------------------------
+bool P2PClient::fileAlreadyExists(const std::string& download_dir, const uint64_t file_uuid) {
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator(download_dir)) {
+            // Ignore directories, symlinks, etc.
+            if (!entry.is_regular_file()) 
+                continue;
+
+            uint64_t existing_file_hash = sha256Hash(entry.path());
+            if (existing_file_hash == file_uuid) {
+                std::cout << "File already exists: " << entry.path().filename() << std::endl;
+                return true;
+            }
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error checking existing files: " << e.what() << std::endl;
+    }
+
+    return false;
 }
 
 } // namespace dfd

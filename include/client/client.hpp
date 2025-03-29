@@ -273,6 +273,22 @@ private:
      */
     void sendControlRequest(SourceInfo peer, uint64_t file_uuid, SourceInfo server_info);
 
+    /*
+     * fileAlreadyExists
+     * Description: Checks if a file with the given UUID already exists in the
+     *              download directory.
+     *
+     * Takes:
+     * -> download_dir:
+     *    The directory where files are downloaded.
+     * -> file_uuid:
+     *    The UUID of the file to check.
+     *
+     * Returns:
+     * -> true if the file already exists, false otherwise.
+     */
+    bool fileAlreadyExists(const std::string& download_dir, const uint64_t file_uuid);
+
     void workerThread(const uint64_t file_uuid, const std::vector<dfd::SourceInfo>& peers, size_t thread_ind);
     bool downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index);
 
@@ -280,6 +296,7 @@ private:
     uint64_t    my_uuid;
     SourceInfo  server_info;
     bool        am_running;
+    std::string download_dir;
 
     // For each file we share: file_id -> local filename
     // If you still have string-based "UUIDs" in your code, you can keep them
