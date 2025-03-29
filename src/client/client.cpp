@@ -101,6 +101,8 @@ void P2PClient::run() {
         if (command == "exit") {
             std::cout << "Exiting...\n";
             am_running = false;
+        } else if (command == "list") {
+            handleList();
         } else if (command.rfind("index ", 0) == 0) {
             // e.g. "index myfile.txt"
             std::string file_name = command.substr(6);
@@ -205,6 +207,23 @@ bool checkCode(int sock, const std::vector<uint8_t> buffer, const uint8_t code, 
     }
 
     return true;
+}
+
+//------------------------------------------------------------------------------
+// Private: handle "list"
+//------------------------------------------------------------------------------
+void P2PClient::handleList() {
+    std::lock_guard<std::mutex> lock(share_mutex_);
+    if (shared_files_.empty()) {
+        std::cout << "No files indexed.\n";
+    } else {
+        std::cout << "Currently indexed files:\n";
+        for (const auto& kv : shared_files_) {
+            std::cout << "  File ID: " << kv.first 
+            << ", Name: " << std::filesystem::path(kv.second).filename().string() 
+            << "\n";
+        }
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -569,6 +588,7 @@ void P2PClient::handleDrop(const std::string& file_name) {
 //------------------------------------------------------------------------------
 void P2PClient::printHelp() {
     std::cout << "Available commands:\n";
+    std::cout << "  list                - List all currently indexed files\n";
     std::cout << "  index <filename>    - Register/share <filename>\n";
     std::cout << "  download <filename> - Download <filename> from a peer\n";
     std::cout << "  drop <filename>     - Remove <filename> from the server\n";
@@ -669,7 +689,7 @@ void P2PClient::listeningLoop() {
 void P2PClient::handlePeerRequest(int client_socket_fd) {
     //this is a passive listening service for an indexer
     //it should give feedback to client on error
-    
+
     //recieve client file request
     std::vector<uint8_t> buffer;
     if (!recvOkay(client_socket_fd, buffer, ""))

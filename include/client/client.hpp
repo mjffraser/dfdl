@@ -110,6 +110,7 @@ private:
     std::atomic<bool> download_complete{false};
 
     // -- High-level Command Handlers (e.g., user typed "index <filename>")
+    void handleList();
     void handleIndex(const std::string& file_name);
     void handleDownload(const uint64_t file_uuid);
     void handleDrop(const std::string& file_name);
