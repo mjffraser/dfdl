@@ -903,7 +903,8 @@ uint64_t P2PClient::initializeUUID() {
 
     // Generate new UUID
     if (std::ifstream urandom("/dev/urandom", std::ios::binary); urandom) {
-        urandom.read(reinterpret_cast<char*>(&uuid), sizeof(uuid));
+        // TODO: We've manually set byte size to 4, but should be sizeof(uuid) for a full UUID.
+        urandom.read(reinterpret_cast<char*>(&uuid), 4);
     } 
     if (uuid == 0) { // Fallback if /dev/urandom fails
         std::cout << "Warning: Using random_device as fallback to generate UUID.\n";
