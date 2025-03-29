@@ -5,6 +5,8 @@
 #include <vector>
 #include <queue>
 
+#include "server/internal/database/db.hpp"
+
 namespace dfd {
 
 ssize_t forwardRegistration(std::vector<uint8_t>& reg_message,
@@ -33,8 +35,8 @@ void removeFailedServers(std::vector<SourceInfo>& known_servers,
 int databaseReciveNS(int socket_fd, Database* db);
 
 //sends database backup to the new server
-int databaseSendNS(const SourceInfo& new_server, Database* db);
+int databaseSendNS(int socket_fd);
 
-void massWriteSend(const SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_queue);
+void massWriteSend(SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_queue);
 
 } //dfd 

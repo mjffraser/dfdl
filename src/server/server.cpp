@@ -271,6 +271,16 @@ void handleConnectionThread(int client_fd, std::vector<std::thread>& workers) {
             if (worker_strikes[worker_id] > 0)
                 worker_strikes[worker_id] = 0;
 
+            if (*response.begin() == REG_SERVERS_LIST) {
+                databaseSendNS(client_fd);
+
+                //stop recording
+                {
+                    std::lock_guard<std::mutex> lock(syncing_mutex);
+                    syncing_server = false;
+                }
+            }
+
             {
                 std::lock_guard<std::mutex> lock(keep_alive_mtx);
                 still_running = false;
@@ -280,6 +290,18 @@ void handleConnectionThread(int client_fd, std::vector<std::thread>& workers) {
 
             tcp::sendMessage(client_fd, response);
             closeSocket(client_fd);
+
+            if (*response.begin() == REG_SERVERS_LIST) {
+                SourceInfo si = parseNewServerReg(buffer);
+                // forward queued updates to the new server
+                dfd::massWriteSend(si, sync_message_queue);
+                {
+                    std::lock_guard<std::mutex> lock(sync_queue_mutex);
+                    //empty q so it works next time
+                    sync_message_queue = std::queue<std::vector<uint8_t>>();
+                }
+            }
+
             return;
         }
 
@@ -596,7 +618,7 @@ void workerThread(int thread_ind, bool writer=false) {
                         std::lock_guard<std::mutex> lock(syncing_mutex);
                         syncing_server = true;
                     }
-                    std::cout << "registering" << std::endl;
+                    std::cout << "registering with " << known_servers.size() << std::endl;
                     SourceInfo new_server = parseNewServerReg(buff);
                     ssize_t registered_with = forwardRegistration(buff, known_servers);
                     if (registered_with < 0) {
@@ -604,21 +626,7 @@ void workerThread(int thread_ind, bool writer=false) {
                     } else {
                         response = createServerRegResponse(known_servers);
                         known_servers.push_back(new_server);
-                        if (databaseSendNS(new_server, db) != EXIT_SUCCESS) {
-                            std::cerr << "database sent to new server\n";
-                        }
-                    }
-                    //stop recording
-                    {
-                        std::lock_guard<std::mutex> lock(syncing_mutex);
-                        syncing_server = false;
-                    }
-                    //forward queued updates to the new server
-                    dfd::massWriteSend(new_server, sync_message_queue);
-                    {
-                        std::lock_guard<std::mutex> lock(sync_queue_mutex);
-                        //empty q so it works next time
-                        sync_message_queue = std::queue<std::vector<uint8_t>>();
+                        db->backupDatabase("temp.db");
                     }
                     break;
                 }
@@ -750,6 +758,13 @@ void setupThread(SourceInfo known_server) {
         return;
     }
 
+    //recive the DB from known server
+    if (databaseReciveNS(client_sock, db) != EXIT_SUCCESS) {
+        std::cerr << "db failed to be obtained and merged in setup\n";
+    } else {
+        std::cout << "db obtained and merged in setup\n";
+    }
+
     //buffer for response
     std::vector<uint8_t> buffer;
     timeval timeout = {5, 0};
@@ -769,13 +784,6 @@ void setupThread(SourceInfo known_server) {
     std::cout << "[DEBUG] SERVERS:" << std::endl;
     for (auto& s : known_servers) {
         std::cout << s.ip_addr << " " << s.port << std::endl;
-    }
-
-    //recive the DB from known server
-    if (databaseReciveNS(client_sock, db) != EXIT_SUCCESS) {
-        std::cerr << "db failed to be obtained and merged in setup\n";
-    } else {
-        std::cout << "db obtained and merged in setup\n";
     }
 
     //close socket
