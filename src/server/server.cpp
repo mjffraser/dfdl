@@ -530,12 +530,15 @@ void workerThread(int thread_ind, bool writer=false) {
                 case INDEX_REQUEST: {
                     FileId file_id = parseIndexRequest(buff);
                     auto failed_servers = forwardIndexRequest(buff, known_servers);
+                    db_locking = true;
                     if (EXIT_SUCCESS != db->indexFile(file_id.uuid, 
                                                       file_id.indexer, 
-                                                      file_id.f_size))
+                                                      file_id.f_size,
+                                                      db_lock))
                         response = createFailMessage(db->sqliteError()); 
                     else
                         response = {INDEX_OK}; //ack-byte
+                    db_locking = false;
 
                     if (!failed_servers.empty()){
                         removeFailedServers(known_servers, failed_servers);
@@ -545,12 +548,15 @@ void workerThread(int thread_ind, bool writer=false) {
 
                 case INDEX_FORWARD: {
                     FileId file_id = parseIndexRequest(buff);
+                    db_locking = true;
                     if (EXIT_SUCCESS != db->indexFile(file_id.uuid, 
                                                       file_id.indexer, 
-                                                      file_id.f_size))
+                                                      file_id.f_size,
+                                                      db_lock))
                         response = createFailMessage(db->sqliteError()); 
                     else
                         response = {FORWARD_OK}; //ack-byte
+                    db_locking = false;
                     break;
                 }
 
@@ -560,10 +566,12 @@ void workerThread(int thread_ind, bool writer=false) {
                     //see messageFormatting for IndexUuidPair
                     IndexUuidPair uuids = parseDropRequest(buff);
                     auto failed_servers = forwardDropRequest(buff, known_servers);
-                    if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second))
+                    db_locking = true;
+                    if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second, db_lock))
                         response = createFailMessage(db->sqliteError());
                     else
                         response = {DROP_OK};
+                    db_locking = false;
                     
                     if (!failed_servers.empty()){
                         removeFailedServers(known_servers, failed_servers);
@@ -573,20 +581,24 @@ void workerThread(int thread_ind, bool writer=false) {
                 case DROP_FORWARD: {
                     //see messageFormatting for IndexUuidPair
                     IndexUuidPair uuids = parseDropRequest(buff);
-                    if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second))
+                    db_locking = true;
+                    if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second, db_lock))
                         response = createFailMessage(db->sqliteError());
                     else
                         response = {FORWARD_OK};
+                    db_locking = false;
                     break;
                 }
 
                 case REREGISTER_REQUEST: {
                     SourceInfo client_info = parseReregisterRequest(buff);
                     auto failed_servers = forwardReregRequest(buff, known_servers);
-                    if (EXIT_SUCCESS != db->updateClient(client_info))
+                    db_locking = true;
+                    if (EXIT_SUCCESS != db->updateClient(client_info, db_lock))
                         response = createFailMessage(db->sqliteError());
                     else
                         response = {REREGISTER_OK};
+                    db_locking = false;
                     
                     if (!failed_servers.empty()){
                         removeFailedServers(known_servers, failed_servers);
@@ -595,17 +607,19 @@ void workerThread(int thread_ind, bool writer=false) {
                 }
                 case REREGISTER_FORWARD: {
                     SourceInfo client_info = parseReregisterRequest(buff);
-                    if (EXIT_SUCCESS != db->updateClient(client_info))
+                    db_locking = true;
+                    if (EXIT_SUCCESS != db->updateClient(client_info, db_lock))
                         response = createFailMessage(db->sqliteError());
                     else
                         response = {FORWARD_OK};
+                    db_locking = false;
                     break;   
                 }
 
                 case SOURCE_REQUEST: {
                     uint64_t f_uuid = parseSourceRequest(buff);
                     std::vector<SourceInfo> indexers;
-                    if (EXIT_SUCCESS != db->grabSources(f_uuid, indexers))
+                    if (EXIT_SUCCESS != db->grabSources(f_uuid, indexers, db_locking, db_lock))
                         response = createFailMessage(db->sqliteError());
                     else
                         response = createSourceList(indexers);

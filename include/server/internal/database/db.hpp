@@ -1,6 +1,8 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
+#include <shared_mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -194,7 +196,8 @@ public:
      */
     int indexFile(const uint64_t     uuid, 
                   const SourceInfo&  indexer,
-                  const uint64_t     f_size);
+                  const uint64_t     f_size,
+                  std::shared_mutex& db_lock);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -217,7 +220,9 @@ public:
      *    EXIT_FAILURE
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int dropIndex(const uint64_t f_uuid, const uint64_t c_uuid);
+    int dropIndex(const uint64_t     f_uuid,
+                  const uint64_t     c_uuid,
+                  std::shared_mutex& db_lock);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -245,7 +250,9 @@ public:
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
     int grabSources(const uint64_t&          uuid,
-                    std::vector<SourceInfo>& dest);
+                    std::vector<SourceInfo>& dest, 
+                    std::atomic<bool>&       db_locking, 
+                    std::shared_mutex&       db_lock);
 
 
     /*
@@ -267,7 +274,8 @@ public:
      *    EXIT_FAILURE, on a critical error.
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int updateClient(const SourceInfo& indexer);
+    int updateClient(const SourceInfo&  indexer,
+                     std::shared_mutex& db_lock);
     
     //CONSTRUCTOR
     Database(const std::string& db_path) {
