@@ -73,7 +73,7 @@ public:
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
     P2PClient(const std::string& server_ip,
-              int                server_port, 
+              int                server_port,
               const std::string& download_dir,
               const std::string& listen_addr);
 
@@ -274,6 +274,17 @@ private:
      * -> The UUID of this client.
     */
     uint64_t initializeUUID();
+
+    /*
+     * initializeHost
+     * Description: Looks for host in the config directory. If file doesn't exist, uses
+     * ip and port args and creates file after successful connection. If failure,
+     * exit(1).
+     *
+     * Returns:
+     * -> Returns first successful host connection.
+    */
+    SourceInfo findHost(const std::string& ip, int port);
 
     /*
      * sendControlRequest

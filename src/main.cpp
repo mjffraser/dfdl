@@ -12,7 +12,7 @@ static uint16_t port = 0;
 //client-specific
 static std::string download_dir = "";
 static uint64_t    my_uuid      = 0;
-static std::string ip_addr;
+static std::string ip_addr = "";
 static std::string listen_addr;
 
 //server-specific
@@ -25,7 +25,7 @@ bool isServer(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         //shared options
         try {
-            if (std::string(argv[i]) == "--port") 
+            if (std::string(argv[i]) == "--port")
                 if (i+1 < argc) port = std::stoi(argv[i+1]);
         } catch (...) {
             std::cerr << "USAGE: --port <#>" << std::endl;
@@ -36,7 +36,7 @@ bool isServer(int argc, char **argv) {
         if (std::string(argv[i]) == "--server") {
             is_server = true;
         }
-        
+
         if (std::string(argv[i]) == "--connect") {
             try {
                 if (i+2 < argc) {
@@ -89,25 +89,24 @@ bool isServer(int argc, char **argv) {
     }
 
     //server needs port to open on, client needs server port to connect to
-    if (port == 0) {
+    if (port == 0 && is_server) {
         std::cerr << "Missing port!" << std::endl;
         exit(-1);
-    } 
+    }
 
-    if (!(port < 65535 && port > 1023)) {
+    if (is_server && !(port < 65535 && port > 1023)) {
         std::cerr << "Port must be between 1024 & 65535 inclusive." << std::endl;
         exit(-1);
     }
 
     if (is_client) {
-        //client needs a server ip
-        if (ip_addr.length() == 0) {
-            std::cerr << "Missing server IP!" << std::endl;
-            exit(-1);
-        }
-        
         if (listen_addr.length() == 0) {
             std::cerr << "Missing listen IP!" << std::endl;
+            exit(-1);
+        }
+
+        if (port != 0 && !(port < 65535 && port > 1023)){
+            std::cerr << "Port must be between 1024 & 65535 inclusive." << std::endl;
             exit(-1);
         }
     }
@@ -120,7 +119,7 @@ bool isServer(int argc, char **argv) {
  * main
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Main distributed file downloading software. 
+ * -> Main distributed file downloading software.
  *
  * Takes:
  * -> argc:
@@ -146,6 +145,3 @@ int main(int argc, char** argv) {
     client.run();
     return 0;
 }
-
-
-
