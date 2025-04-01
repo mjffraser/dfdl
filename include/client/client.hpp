@@ -73,8 +73,7 @@ public:
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
     P2PClient(const std::string& server_ip,
-              int                server_port, 
-              const uint64_t     uuid,
+              int                server_port,
               const std::string& download_dir,
               const std::string& listen_addr);
 
@@ -110,6 +109,7 @@ private:
     std::atomic<bool> download_complete{false};
 
     // -- High-level Command Handlers (e.g., user typed "index <filename>")
+    void handleList();
     void handleIndex(const std::string& file_name);
     void handleDownload(const uint64_t file_uuid);
     void handleDrop(const std::string& file_name);
@@ -265,6 +265,50 @@ private:
      */
     int getListeningPort();
 
+    /*
+     * initializeUUID
+     * Description: Initializes UUID for this client. Does so by either
+     * reading into the `config/uuid` file or generating one at random.
+     *
+     * Returns:
+     * -> The UUID of this client.
+    */
+    uint64_t initializeUUID();
+
+    /*
+     * initializeHost
+     * Description: Looks for host in the config directory. If file doesn't exist, uses
+     * ip and port args and creates file after successful connection. If failure,
+     * exit(1).
+     *
+     * Returns:
+     * -> Returns first successful host connection.
+    */
+    SourceInfo findHost(const std::string& ip, int port);
+
+    /*
+     * sendControlRequest
+     * Description: Sends a control request to server when client detects a
+     *              potentially dead peer DX
+     */
+    void sendControlRequest(SourceInfo peer, uint64_t file_uuid, SourceInfo server_info);
+
+    /*
+     * fileAlreadyExists
+     * Description: Checks if a file with the given UUID already exists in the
+     *              download directory.
+     *
+     * Takes:
+     * -> download_dir:
+     *    The directory where files are downloaded.
+     * -> file_uuid:
+     *    The UUID of the file to check.
+     *
+     * Returns:
+     * -> true if the file already exists, false otherwise.
+     */
+    bool fileAlreadyExists(const std::string& download_dir, const uint64_t file_uuid);
+
     void workerThread(const uint64_t file_uuid, const std::vector<dfd::SourceInfo>& peers, size_t thread_ind);
     bool downloadChunk(int client_socket_fd, const std::string& f_name, uint64_t f_size, size_t chunk_index);
 
@@ -272,6 +316,7 @@ private:
     uint64_t    my_uuid;
     SourceInfo  server_info;
     bool        am_running;
+    std::string my_download_dir;
 
     // For each file we share: file_id -> local filename
     // If you still have string-based "UUIDs" in your code, you can keep them

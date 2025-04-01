@@ -28,6 +28,7 @@
 #include <filesystem>
 #include <future>
 #include <chrono>
+#include <random>
 
 namespace dfd
 {
@@ -48,25 +49,31 @@ static void signalHandler(int signum) {
 // Constructor
 //------------------------------------------------------------------------------
 P2PClient::P2PClient(const std::string& server_ip,
-                     int                server_port, 
-                     const uint64_t     id,
+                     int                server_port,
                      const std::string& download_dir,
                      const std::string& listen_addr)
   : am_running(true),
-    my_uuid(id),
     my_listen_sock(-1),
-    my_listen_addr(listen_addr)
+    my_listen_addr(listen_addr),
+    my_download_dir(download_dir)
 {
-    server_info.ip_addr = server_ip;
-    server_info.port    = server_port;
+    server_info = findHost(server_ip, server_port);
 
     g_client_ptr = this;
     signal(2, signalHandler); // SIGINT
 
+    my_uuid = initializeUUID();
+
+    if (my_uuid == 0) {
+        std::cerr << "Failed to initialize UUID.\n";
+        exit(EXIT_FAILURE);
+    }
+
     if (!download_dir.empty())
         setDownloadDir(download_dir);
+    else
+        my_download_dir = initDownloadDir().string();
 
-    // peer_index = 0;
     // Start the listening thread at initialization
     startListening();
 }
@@ -90,6 +97,7 @@ void P2PClient::setRunning(bool running) {
 void P2PClient::run() {
     std::string command;
     std::cout << "Welcome to P2P Client!\n";
+    std::cout << "Your current download directory is: " << my_download_dir << "\n";
     std::cout << "Type 'help' for commands.\n";
 
     while (am_running) {
@@ -101,6 +109,8 @@ void P2PClient::run() {
         if (command == "exit") {
             std::cout << "Exiting...\n";
             am_running = false;
+        } else if (command == "list") {
+            handleList();
         } else if (command.rfind("index ", 0) == 0) {
             // e.g. "index myfile.txt"
             std::string file_name = command.substr(6);
@@ -208,6 +218,23 @@ bool checkCode(int sock, const std::vector<uint8_t> buffer, const uint8_t code, 
 }
 
 //------------------------------------------------------------------------------
+// Private: handle "list"
+//------------------------------------------------------------------------------
+void P2PClient::handleList() {
+    std::lock_guard<std::mutex> lock(share_mutex_);
+    if (shared_files_.empty()) {
+        std::cout << "No files indexed.\n";
+    } else {
+        std::cout << "Currently indexed files:\n";
+        for (const auto& kv : shared_files_) {
+            std::cout << "  File ID: " << kv.first
+            << ", Name: " << std::filesystem::path(kv.second).filename().string()
+            << "\n";
+        }
+    }
+}
+
+//------------------------------------------------------------------------------
 // Private: handle "index <file>"
 //------------------------------------------------------------------------------
 void P2PClient::handleIndex(const std::string& file_name) {
@@ -216,7 +243,7 @@ void P2PClient::handleIndex(const std::string& file_name) {
     //get hash
     uint64_t file_id = sha256Hash(f_path);
     if (file_id == 0) {
-        std::cerr << "Failed to compute file_id for '" << file_name << "'.\n";
+        std::cerr << "Failed to compute file_id for '" << file_name << "'. Is your file empty?\n";
         return;
     }
 
@@ -279,6 +306,11 @@ void P2PClient::handleIndex(const std::string& file_name) {
 // Private: handle "download <file>"
 //------------------------------------------------------------------------------
 void P2PClient::handleDownload(const uint64_t file_uuid) {
+    if (fileAlreadyExists(my_download_dir, file_uuid)) {
+        std::cout << "Skipping download: File already exists in the download directory." << std::endl;
+        return;
+    }
+
     // Reset the state for a new download
     download_complete = false;
 
@@ -302,6 +334,7 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
 
         std::vector<uint8_t> request_ack;
         if (!recvOkay(client_socket_fd, request_ack, "No response from client.")) {
+            sendControlRequest(peers[peer_index], file_uuid, server_info);
             continue;
         }
 
@@ -320,8 +353,10 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
                 throw std::runtime_error("Could not init download procedure with client.");
 
             std::vector<uint8_t> chunk_response;
-            if (!recvOkay(client_socket_fd, chunk_response, "Could not receive chunk for download init."))
+            if (!recvOkay(client_socket_fd, chunk_response, "Could not receive chunk for download init.")) {
+                sendControlRequest(peers[peer_index], file_uuid, server_info);
                 throw std::runtime_error("Could not receive chunk for download init.");
+            }
 
             if (!checkCode(client_socket_fd, chunk_response, DATA_CHUNK, "Client sent something that isn't a chunk!"))
                 throw std::runtime_error("Client sent something that isn't a chunk!");
@@ -361,12 +396,12 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
         std::cout << "Downloaded file." << std::endl;
         return;
     }
-        
+
     for (size_t i = 1; i < chunks; ++i) {
         remaining_chunks.push(i);
     }
     std::cerr << "Number of remaining chunks: " << remaining_chunks.size() << std::endl;
- 
+
 
     std::vector<std::thread> workers;
 
@@ -375,32 +410,32 @@ void P2PClient::handleDownload(const uint64_t file_uuid) {
     // -> available peers
     // -> hardware thread limitations
     // -> number of chunks that still need downloading (opening 8 threads for 3 chunks is a waste)
-    // -> 5 threads 
+    // -> 5 threads
     size_t num_threads = std::min(peers.size(), static_cast<size_t>(std::thread::hardware_concurrency()));
     num_threads        = std::min(num_threads, remaining_chunks.size());
     num_threads        = std::min(num_threads, static_cast<size_t>(5));
 
     for (size_t i = 0; i < num_threads; ++i) {
         workers.emplace_back(
-            &P2PClient::workerThread, 
-            this, 
-            file_uuid, 
+            &P2PClient::workerThread,
+            this,
+            file_uuid,
             std::ref(peers),
             i
         );
     }
- 
+
     while (true) {
         {
             std::unique_lock<std::mutex> lock(done_chunks_mutex);
-            chunks_ready.wait(lock, [&] { 
-                return !done_chunks.empty(); 
+            chunks_ready.wait(lock, [&] {
+                return !done_chunks.empty();
             });
             while (!done_chunks.empty()) {
                 size_t c = done_chunks.front(); done_chunks.pop();
                 assembleChunk(file.get(), f_name, c);
             }
-        
+
             {
                 std::unique_lock<std::mutex> lock2(remaining_chunks_mutex);
                 if (remaining_chunks.empty())
@@ -427,35 +462,38 @@ void P2PClient::workerThread(const uint64_t file_uuid, const std::vector<dfd::So
         //next chunk that needs downloading
         size_t chunk_index;
         {
-            if (remaining_chunks.empty()) 
+            std::unique_lock<std::mutex> lock(remaining_chunks_mutex);
+            if (remaining_chunks.empty())
                 return;
             chunk_index = remaining_chunks.front();
             remaining_chunks.pop();
         }
-        
+
         bool success = false;
-        for (size_t index = thread_ind; index < peers.size(); index++) {
-            int download_from = connectToServer(peers[index]);
+        size_t attempts = 0;
+        // Cycle through peers until we've tried each once.
+        size_t peer_count = peers.size();
+        size_t peer_index = thread_ind % peer_count;  // start at a different offset per thread
+        while (attempts < peer_count) {
+            int download_from = connectToServer(peers[peer_index]);
             std::vector<uint8_t> request = createDownloadInit(file_uuid, std::nullopt);
             if (!sendOkay(download_from, request, "IN THREAD -- Failed to send download request.")) {
-                if (index == peers.size() - 1) {
-                    index = -1;
-                }
+                peer_index = (peer_index + 1) % peer_count;
+                attempts++;
                 continue;
             }
-    
+
             std::vector<uint8_t> request_ack;
-            if (!recvOkay(download_from, request_ack, "IN THREAD -- No response from client with port ." + std::to_string(peers[index].port))) {
-                if (index == peers.size() - 1) {
-                    index = -1;
-                }
+            if (!recvOkay(download_from, request_ack, "IN THREAD -- No response from client with port ." + std::to_string(peers[peer_index].port))) {
+                sendControlRequest(peers[peer_index], file_uuid, server_info);
+                peer_index = (peer_index + 1) % peer_count;
+                attempts++;
                 continue;
             }
-    
+
             if (!checkCode(download_from, request_ack, DOWNLOAD_CONFIRM, true)) {
-                if (index == peers.size() - 1) {
-                    index = -1;
-                }
+                peer_index = (peer_index + 1) % peer_count;
+                attempts++;
                 continue;
             }
 
@@ -468,19 +506,18 @@ void P2PClient::workerThread(const uint64_t file_uuid, const std::vector<dfd::So
                 sendOkay(download_from, {FINISH_DOWNLOAD}, "");
                 closeSocket(download_from);
                 break;
+            } else {
+                sendControlRequest(peers[peer_index], file_uuid, server_info);
             }
 
             closeSocket(download_from);
-
-            if (index == peers.size() - 1) {
-                index = -1;
-            }
+            peer_index = (peer_index + 1) % peer_count;
+            attempts++;
         }
 
         if (!success) {
             std::unique_lock<std::mutex> lock(remaining_chunks_mutex);
             remaining_chunks.push(chunk_index);
-            return;
         }
     }
 }
@@ -564,6 +601,7 @@ void P2PClient::handleDrop(const std::string& file_name) {
 //------------------------------------------------------------------------------
 void P2PClient::printHelp() {
     std::cout << "Available commands:\n";
+    std::cout << "  list                - List all currently indexed files\n";
     std::cout << "  index <filename>    - Register/share <filename>\n";
     std::cout << "  download <filename> - Download <filename> from a peer\n";
     std::cout << "  drop <filename>     - Remove <filename> from the server\n";
@@ -841,6 +879,213 @@ int P2PClient::getListeningPort() {
         return 0;
     }
     return ntohs(sin.sin_port);
+}
+
+//------------------------------------------------------------------------------
+// Private: initialize client's UUID
+//------------------------------------------------------------------------------
+uint64_t P2PClient::initializeUUID() {
+    std::filesystem::path config_dir = "config";
+    std::filesystem::create_directory(config_dir);
+
+    std::filesystem::path uuid_path = config_dir / "uuid";
+    uint64_t uuid = 0;
+
+    // Try reading UUID from file
+    if (std::ifstream uuid_file(uuid_path, std::ios::binary); uuid_file) {
+        uuid_file.read(reinterpret_cast<char*>(&uuid), sizeof(uuid));
+        if (uuid_file.gcount() == sizeof(uuid)) {
+            std::cout << "Loaded UUID from config: " << uuid << std::endl;
+            return uuid;
+        }
+        std::cout << "Error: UUID file exists but does not contain valid data.\n";
+    }
+
+    // Generate new UUID
+    if (std::ifstream urandom("/dev/urandom", std::ios::binary); urandom) {
+        // TODO: We've manually set byte size to 4, but should be sizeof(uuid) for a full UUID.
+        urandom.read(reinterpret_cast<char*>(&uuid), 4);
+    }
+    if (uuid == 0) { // Fallback if /dev/urandom fails
+        std::cout << "Warning: Using random_device as fallback to generate UUID.\n";
+        std::random_device rd;
+        uuid = (static_cast<uint64_t>(rd()) << 32) | rd();
+    }
+
+    // Write new UUID to file
+    if (std::ofstream uuid_file(uuid_path, std::ios::binary | std::ios::trunc); uuid_file) {
+        uuid_file.write(reinterpret_cast<const char*>(&uuid), sizeof(uuid));
+        std::cout << "Generated new UUID and saved to config: " << uuid << std::endl;
+    } else {
+        std::cout << "Error: Could not write new UUID to config file.\n";
+    }
+
+    return uuid;
+}
+
+//------------------------------------------------------------------------------
+// Private: find host from config
+//------------------------------------------------------------------------------
+
+SourceInfo P2PClient::findHost(const std::string &ip, int port) {
+    std::filesystem::path config_dir = "config";
+    std::filesystem::create_directory(config_dir);
+
+    std::filesystem::path host_path = config_dir / "hosts";
+
+    if(ip.length() != 0 && port != 0){
+        SourceInfo server_info;
+        server_info.ip_addr   = ip;
+        server_info.port = port;
+
+        int server_fd = connectToServer(server_info);
+
+        sendOkay(server_fd, {CLIENT_REG}, "Failed to send client registration request.");
+
+        std::vector<uint8_t> response_buff;
+        recvOkay(server_fd, response_buff, "Failed to receive response");
+
+        std::vector<SourceInfo> available_servers = parseServerRegResponse(response_buff);
+
+        if (!available_servers.empty()) {
+
+            std::cout << "SERVER RESPONDED: " << '\n';
+
+            std::filesystem::path config_dir = "config";
+            std::filesystem::path host_path  = config_dir / "hosts";
+
+            std::ofstream out(host_path, std::ios::trunc);
+            if (!out) {
+                std::cerr << "Failed to open '" << host_path.string()
+                          << "' for writing.\n";
+                return server_info;
+            }
+
+            for (const auto &s : available_servers) {
+                std::cout << "HOST: " << s.ip_addr << " " << s.port << "\n";
+                out << s.ip_addr << " " << s.port << "\n";
+            }
+
+            return server_info;
+        }
+
+        return server_info;
+    }
+
+    if (!std::filesystem::exists(host_path)) {
+        std::cerr << "[findHost] No server ip specified and no 'hosts' file found in "
+                    << config_dir.string() << "\n";
+        exit(EXIT_FAILURE);
+    }
+
+    std::ifstream file(host_path);
+    if (!file.is_open()) {
+        std::cerr << "[findHost] Failed to open 'hosts' file at "
+                    << host_path.string() << "\n";
+        exit(EXIT_FAILURE);
+    }
+
+    std::vector<SourceInfo> available_servers;
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.empty()) {
+            continue;
+        }
+
+        std::istringstream iss(line);
+        std::string candidate_ip;
+        int candidate_port = 0;
+
+        if (!(iss >> candidate_ip >> candidate_port)) {
+            // If parsing fails, skip this line
+            continue;
+        }
+
+        SourceInfo server_info;
+        server_info.ip_addr   = candidate_ip;
+        server_info.port = candidate_port;
+
+        int server_fd = connectToServer(server_info);
+
+        if (!sendOkay(server_fd, {CLIENT_REG}, "Failed to send client registration request.")) {
+            continue;
+        }
+
+        std::vector<uint8_t> response_buff;
+        if (!recvOkay(server_fd, response_buff, "Failed to receive response")) {
+            continue;
+        }
+
+        available_servers = parseServerRegResponse(response_buff);
+
+        closeSocket(server_fd);
+
+        if (!available_servers.empty()) {
+            std::filesystem::path config_dir = "config";
+            std::filesystem::path host_path  = config_dir / "hosts";
+
+            std::ofstream out(host_path, std::ios::trunc);
+            if (!out) {
+                std::cerr << "Failed to open '" << host_path.string()
+                            << "' for writing.\n";
+                return server_info;
+            }
+
+            for (const auto &s : available_servers) {
+                out << s.ip_addr << " " << s.port << "\n";
+            }
+
+            return server_info;
+        }
+
+        return server_info;
+    }
+
+    std::cerr << "Could not make a connection with any server.\n";
+    exit(EXIT_FAILURE);
+}
+
+//------------------------------------------------------------------------------
+// Private: send a control request to the server when a potentially dead peer
+//          is detected
+//------------------------------------------------------------------------------
+void P2PClient::sendControlRequest(SourceInfo peer, uint64_t file_uuid, SourceInfo server_info) {
+    std::vector<uint8_t> control_request = createControlRequest(peer, file_uuid);
+    int server_fd = connectToServer(server_info);
+    if (!sendOkay(server_fd, control_request, "Failed to send control request."))
+    {
+    }
+    std::vector<uint8_t> control_response;
+    if (!recvOkay(server_fd, control_response, "Could not receive control response from server."))
+    {
+    }
+    if (!checkCode(server_fd, control_response, CONTROL_OK, "Control response not OK."))
+    {
+    }
+    std::cout << "Control response OK." << std::endl;
+}
+
+//------------------------------------------------------------------------------
+// Private: checks if a file already exists in the download directory
+//------------------------------------------------------------------------------
+bool P2PClient::fileAlreadyExists(const std::string& download_dir, const uint64_t file_uuid) {
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator(download_dir)) {
+            // Ignore directories, symlinks, etc.
+            if (!entry.is_regular_file())
+                continue;
+
+            uint64_t existing_file_hash = sha256Hash(entry.path());
+            if (existing_file_hash == file_uuid) {
+                std::cout << "File already exists: " << entry.path().filename() << std::endl;
+                return true;
+            }
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error checking existing files: " << e.what() << std::endl;
+    }
+
+    return false;
 }
 
 } // namespace dfd
