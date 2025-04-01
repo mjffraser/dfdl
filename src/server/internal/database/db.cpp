@@ -3,9 +3,12 @@
 #include "server/internal/database/internal/queries.hpp"
 #include "server/internal/database/internal/tableInfo.hpp"
 #include "sourceInfo.hpp"
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 
 namespace dfd {
@@ -149,7 +152,8 @@ std::string indexKey(const SourceInfo& indexer, const uint64_t uuid) {
 
 int Database::indexFile(const uint64_t     uuid, 
                         const SourceInfo&  indexer,
-                        const uint64_t     f_size) {
+                        const uint64_t     f_size,
+                        std::shared_mutex& db_lock) {
     //first check if indexer already exists and up-to-date
     std::string        peer_condition = PEER_KEY.first + "=" + std::to_string(indexer.peer_id);
     AttributeValuePair peer_pk        = std::make_pair(PEER_KEY.first, indexer.peer_id);
@@ -158,53 +162,63 @@ int Database::indexFile(const uint64_t     uuid,
         {PEER_ATTRIBUTES[1].first, indexer.port}
     };
 
-   int res = insertOrUpdate(db, 
-                            PEER_NAME, 
-                            peer_pk, 
-                            peer_values, 
-                            peer_condition);
-    if (res == EXIT_FAILURE)
-        return EXIT_FAILURE; 
+    //lock on db
+    { 
+        std::unique_lock<std::shared_mutex> lock(db_lock);
 
-    //now we need to check if the file to index already exists
-    std::string        file_condition = FILE_KEY.first + "=" + std::to_string(uuid);
-    AttributeValuePair file_pk        = std::make_pair(FILE_KEY.first, uuid);
-    std::vector<AttributeValuePair> file_values = {
-        {FILE_ATTRIBUTES[0].first, f_size}
-    };
+        int res = insertOrUpdate(db, 
+                                PEER_NAME, 
+                                peer_pk, 
+                                peer_values, 
+                                peer_condition);
+        if (res == EXIT_FAILURE)
+            return EXIT_FAILURE; 
 
-    res = insertOrUpdate(db, 
-                         FILE_NAME, 
-                         file_pk, 
-                         file_values, 
-                         file_condition);
-    if (res == EXIT_FAILURE)
-        return EXIT_FAILURE;
+        //now we need to check if the file to index already exists
+        std::string        file_condition = FILE_KEY.first + "=" + std::to_string(uuid);
+        AttributeValuePair file_pk        = std::make_pair(FILE_KEY.first, uuid);
+        std::vector<AttributeValuePair> file_values = {
+            {FILE_ATTRIBUTES[0].first, f_size}
+        };
 
-    //finally, associate the indexer with the file
-    std::string        index_key       = indexKey(indexer, uuid);
-    std::string        index_condition = INDEX_KEY.first + "='" + index_key + "'";
-    AttributeValuePair index_pk        = std::make_pair(INDEX_KEY.first, index_key);
-    std::vector<AttributeValuePair> index_values = {
-        {INDEX_ATTRIBUTES[0].first, indexer.peer_id},
-        {INDEX_ATTRIBUTES[1].first, uuid}
-    };
+        res = insertOrUpdate(db, 
+                            FILE_NAME, 
+                            file_pk, 
+                            file_values, 
+                            file_condition);
+        if (res == EXIT_FAILURE)
+            return EXIT_FAILURE;
 
-    res = insertOrUpdate(db, 
-                         INDEX_NAME, 
-                         index_pk, 
-                         index_values, 
-                         index_condition);
-    if (res == EXIT_FAILURE)
-        return EXIT_FAILURE;
+        //finally, associate the indexer with the file
+        std::string        index_key       = indexKey(indexer, uuid);
+        std::string        index_condition = INDEX_KEY.first + "='" + index_key + "'";
+        AttributeValuePair index_pk        = std::make_pair(INDEX_KEY.first, index_key);
+        std::vector<AttributeValuePair> index_values = {
+            {INDEX_ATTRIBUTES[0].first, indexer.peer_id},
+            {INDEX_ATTRIBUTES[1].first, uuid}
+        };
+
+        res = insertOrUpdate(db, 
+                            INDEX_NAME, 
+                            index_pk, 
+                            index_values, 
+                            index_condition);
+        if (res == EXIT_FAILURE)
+            return EXIT_FAILURE;
+        
+    }
 
     return EXIT_SUCCESS;
 }
 
-int Database::dropIndex(const uint64_t f_uuid, const uint64_t c_uuid) {
+int Database::dropIndex(const uint64_t     f_uuid,
+                        const uint64_t     c_uuid,
+                        std::shared_mutex& db_lock) {
     SourceInfo dummy_client; dummy_client.peer_id = c_uuid;
     std::string        index_key = indexKey(dummy_client, f_uuid);
     AttributeValuePair index_pk  = std::make_pair(INDEX_KEY.first, index_key);
+
+    std::unique_lock<std::shared_mutex> lock(db_lock);
     auto err_val = doDelete(db, INDEX_NAME, index_pk);
     if (err_val)
         return reportError(err_val.value());
@@ -212,55 +226,65 @@ int Database::dropIndex(const uint64_t f_uuid, const uint64_t c_uuid) {
 }
 
 int Database::grabSources(const uint64_t&          uuid,
-                          std::vector<SourceInfo>& dest) {
+                          std::vector<SourceInfo>& dest, 
+                          std::atomic<bool>&       db_locking, 
+                          std::shared_mutex&       db_lock) {
     std::vector<Row> peers;
 
     //select on file uuid
     std::string select_constraint = INDEX_ATTRIBUTES[1].first + "=" + std::to_string(uuid);
 
-    auto err_val = doSelect(db, 
-                            INDEX_NAME, 
-                            {INDEX_ATTRIBUTES[0].first}, 
-                            {select_constraint},
-                            &peers);
-    if (err_val)
-        return reportError(err_val.value());
-    else if (peers.empty())
-        return reportError("No peers are indexing this file.");
-    
-    std::vector<std::string> to_select = {
-        PEER_KEY.first,
-        PEER_ATTRIBUTES[0].first,
-        PEER_ATTRIBUTES[1].first
-    };
+    //db lock
+    {
+        while (db_locking) {std::this_thread::sleep_for(std::chrono::milliseconds(1));}
+        std::shared_lock<std::shared_mutex> lock(db_lock);
 
-    dest.clear();
-    for (Row& r : peers) {
-        std::vector<Row> peer_row;
-        SourceInfo s;
-        select_constraint = PEER_KEY.first + "=" + r[0]; //id=[id selected above]
-        err_val = doSelect(db,
-                           PEER_NAME,
-                           to_select,
-                           {select_constraint},
-                           &peer_row);
+        auto err_val = doSelect(db, 
+                                INDEX_NAME, 
+                                {INDEX_ATTRIBUTES[0].first}, 
+                                {select_constraint},
+                                &peers);
         if (err_val)
             return reportError(err_val.value());
+        else if (peers.empty())
+            return reportError("No peers are indexing this file.");
+    
+        std::vector<std::string> to_select = {
+            PEER_KEY.first,
+            PEER_ATTRIBUTES[0].first,
+            PEER_ATTRIBUTES[1].first
+        };
 
-        if (peer_row[0].size() != 3) {
-            return reportError("Missing data for peer.");
+        dest.clear();
+        for (Row& r : peers) {
+            std::vector<Row> peer_row;
+            SourceInfo s;
+            select_constraint = PEER_KEY.first + "=" + r[0]; //id=[id selected above]
+            err_val = doSelect(db,
+                               PEER_NAME,
+                               to_select,
+                               {select_constraint},
+                               &peer_row);
+            if (err_val)
+                return reportError(err_val.value());
+
+            if (peer_row[0].size() != 3) {
+                return reportError("Missing data for peer.");
+            }
+
+            s.peer_id = std::stoull(peer_row[0][0]);
+            s.ip_addr = peer_row[0][1];
+            s.port    = std::stoul(peer_row[0][2]);
+            dest.push_back(s);
         }
 
-        s.peer_id = std::stoull(peer_row[0][0]);
-        s.ip_addr = peer_row[0][1];
-        s.port    = std::stoul(peer_row[0][2]);
-        dest.push_back(s);
     }
 
     return EXIT_SUCCESS;
 }
 
-int Database::updateClient(const SourceInfo& indexer) {
+int Database::updateClient(const SourceInfo&  indexer,
+                           std::shared_mutex& db_lock) {
     std::string        peer_condition = PEER_KEY.first + "=" + std::to_string(indexer.peer_id);
     AttributeValuePair peer_pk        = std::make_pair(PEER_KEY.first, indexer.peer_id);
     std::vector<AttributeValuePair> peer_values = {
@@ -268,6 +292,7 @@ int Database::updateClient(const SourceInfo& indexer) {
         {PEER_ATTRIBUTES[1].first, indexer.port}
     };
 
+    std::unique_lock<std::shared_mutex> lock(db_lock);
     int res = insertOrUpdate(db,
                              PEER_NAME,
                              peer_pk,

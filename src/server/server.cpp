@@ -59,6 +59,14 @@ std::mutex ekko_mutex;
 //when ekkoing is done this will be notified
 std::condition_variable ekko_flag;
 
+//Globals for the race condition resolution on server boot
+//global sync flag (true if a server is being registered)
+std::mutex syncing_mutex;
+bool syncing_server = false;
+//q for potential race condition msgs
+std::mutex sync_queue_mutex;
+std::queue<std::vector<uint8_t>> sync_message_queue;
+
 #define WORKER_THREADS 10
 std::atomic<int> setup_workers          = 0;
 std::atomic<int> setup_election_workers = 0;
@@ -238,6 +246,14 @@ void handleConnectionThread(int client_fd, std::vector<std::thread>& workers) {
         } else {
             worker_id = WORKER_THREADS-1; //last id always corresponds to writer
             worker_addr.port = write_worker;
+            //this bit here adds msg to sync msg q if were syncing to help with race conditions when sending server
+            {
+                std::lock_guard<std::mutex> lock(syncing_mutex);
+                if (syncing_server) {
+                        std::lock_guard<std::mutex> qlock(sync_queue_mutex);
+                        sync_message_queue.push(buffer);
+                }
+            }
         }
 
         std::cout << "attempt " << i << std::endl;
@@ -255,6 +271,16 @@ void handleConnectionThread(int client_fd, std::vector<std::thread>& workers) {
             if (worker_strikes[worker_id] > 0)
                 worker_strikes[worker_id] = 0;
 
+            if (*response.begin() == REG_SERVERS_LIST) {
+                databaseSendNS(client_fd);
+
+                //stop recording
+                {
+                    std::lock_guard<std::mutex> lock(syncing_mutex);
+                    syncing_server = false;
+                }
+            }
+
             {
                 std::lock_guard<std::mutex> lock(keep_alive_mtx);
                 still_running = false;
@@ -264,6 +290,18 @@ void handleConnectionThread(int client_fd, std::vector<std::thread>& workers) {
 
             tcp::sendMessage(client_fd, response);
             closeSocket(client_fd);
+
+            if (*response.begin() == REG_SERVERS_LIST) {
+                SourceInfo si = parseNewServerReg(buffer);
+                // forward queued updates to the new server
+                dfd::massWriteSend(si, sync_message_queue);
+                {
+                    std::lock_guard<std::mutex> lock(sync_queue_mutex);
+                    //empty q so it works next time
+                    sync_message_queue = std::queue<std::vector<uint8_t>>();
+                }
+            }
+
             return;
         }
 
@@ -492,12 +530,15 @@ void workerThread(int thread_ind, bool writer=false) {
                 case INDEX_REQUEST: {
                     FileId file_id = parseIndexRequest(buff);
                     auto failed_servers = forwardIndexRequest(buff, known_servers);
+                    db_locking = true;
                     if (EXIT_SUCCESS != db->indexFile(file_id.uuid, 
                                                       file_id.indexer, 
-                                                      file_id.f_size))
+                                                      file_id.f_size,
+                                                      db_lock))
                         response = createFailMessage(db->sqliteError()); 
                     else
                         response = {INDEX_OK}; //ack-byte
+                    db_locking = false;
 
                     if (!failed_servers.empty()){
                         removeFailedServers(known_servers, failed_servers);
@@ -507,12 +548,15 @@ void workerThread(int thread_ind, bool writer=false) {
 
                 case INDEX_FORWARD: {
                     FileId file_id = parseIndexRequest(buff);
+                    db_locking = true;
                     if (EXIT_SUCCESS != db->indexFile(file_id.uuid, 
                                                       file_id.indexer, 
-                                                      file_id.f_size))
+                                                      file_id.f_size,
+                                                      db_lock))
                         response = createFailMessage(db->sqliteError()); 
                     else
                         response = {FORWARD_OK}; //ack-byte
+                    db_locking = false;
                     break;
                 }
 
@@ -522,10 +566,12 @@ void workerThread(int thread_ind, bool writer=false) {
                     //see messageFormatting for IndexUuidPair
                     IndexUuidPair uuids = parseDropRequest(buff);
                     auto failed_servers = forwardDropRequest(buff, known_servers);
-                    if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second))
+                    db_locking = true;
+                    if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second, db_lock))
                         response = createFailMessage(db->sqliteError());
                     else
                         response = {DROP_OK};
+                    db_locking = false;
                     
                     if (!failed_servers.empty()){
                         removeFailedServers(known_servers, failed_servers);
@@ -535,20 +581,24 @@ void workerThread(int thread_ind, bool writer=false) {
                 case DROP_FORWARD: {
                     //see messageFormatting for IndexUuidPair
                     IndexUuidPair uuids = parseDropRequest(buff);
-                    if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second))
+                    db_locking = true;
+                    if (EXIT_SUCCESS != db->dropIndex(uuids.first, uuids.second, db_lock))
                         response = createFailMessage(db->sqliteError());
                     else
                         response = {FORWARD_OK};
+                    db_locking = false;
                     break;
                 }
 
                 case REREGISTER_REQUEST: {
                     SourceInfo client_info = parseReregisterRequest(buff);
                     auto failed_servers = forwardReregRequest(buff, known_servers);
-                    if (EXIT_SUCCESS != db->updateClient(client_info))
+                    db_locking = true;
+                    if (EXIT_SUCCESS != db->updateClient(client_info, db_lock))
                         response = createFailMessage(db->sqliteError());
                     else
                         response = {REREGISTER_OK};
+                    db_locking = false;
                     
                     if (!failed_servers.empty()){
                         removeFailedServers(known_servers, failed_servers);
@@ -557,17 +607,19 @@ void workerThread(int thread_ind, bool writer=false) {
                 }
                 case REREGISTER_FORWARD: {
                     SourceInfo client_info = parseReregisterRequest(buff);
-                    if (EXIT_SUCCESS != db->updateClient(client_info))
+                    db_locking = true;
+                    if (EXIT_SUCCESS != db->updateClient(client_info, db_lock))
                         response = createFailMessage(db->sqliteError());
                     else
                         response = {FORWARD_OK};
+                    db_locking = false;
                     break;   
                 }
 
                 case SOURCE_REQUEST: {
                     uint64_t f_uuid = parseSourceRequest(buff);
                     std::vector<SourceInfo> indexers;
-                    if (EXIT_SUCCESS != db->grabSources(f_uuid, indexers))
+                    if (EXIT_SUCCESS != db->grabSources(f_uuid, indexers, db_locking, db_lock))
                         response = createFailMessage(db->sqliteError());
                     else
                         response = createSourceList(indexers);
@@ -575,15 +627,20 @@ void workerThread(int thread_ind, bool writer=false) {
                 }
 
                 case SERVER_REG: {
-                    std::cout << "registering" << std::endl;
+                    //start recording msgs to prevent race cond
+                    {
+                        std::lock_guard<std::mutex> lock(syncing_mutex);
+                        syncing_server = true;
+                    }
+                    std::cout << "registering with " << known_servers.size() << std::endl;
                     SourceInfo new_server = parseNewServerReg(buff);
                     ssize_t registered_with = forwardRegistration(buff, known_servers);
-                    //NEEDS CHECKS FOR DEAD SERVERS HERE TODO
                     if (registered_with < 0) {
                         response = createFailMessage("I appear to be a dead server myself?");
                     } else {
                         response = createServerRegResponse(known_servers);
                         known_servers.push_back(new_server);
+                        db->backupDatabase("temp.db");
                     }
                     break;
                 }
@@ -713,6 +770,13 @@ void setupThread(SourceInfo known_server) {
         std::cerr << "Failed to send setup message.\n";
         closeSocket(client_sock);
         return;
+    }
+
+    //recive the DB from known server
+    if (databaseReciveNS(client_sock, db) != EXIT_SUCCESS) {
+        std::cerr << "db failed to be obtained and merged in setup\n";
+    } else {
+        std::cout << "db obtained and merged in setup\n";
     }
 
     //buffer for response

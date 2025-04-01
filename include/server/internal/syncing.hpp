@@ -3,6 +3,9 @@
 #include "sourceInfo.hpp"
 #include <cstdint>
 #include <vector>
+#include <queue>
+
+#include "server/internal/database/db.hpp"
 
 namespace dfd {
 
@@ -26,5 +29,14 @@ std::vector<SourceInfo> forwardReregRequest(
 
 void removeFailedServers(std::vector<SourceInfo>& known_servers,
                             const std::vector<SourceInfo>& failed_servers);
+
+                            //new adds
+//called by new server to receive and merge database
+int databaseReciveNS(int socket_fd, Database* db);
+
+//sends database backup to the new server
+int databaseSendNS(int socket_fd);
+
+void massWriteSend(SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_queue);
 
 } //dfd 
