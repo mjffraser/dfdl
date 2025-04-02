@@ -26,8 +26,6 @@
 #include <thread>
 #include <mutex>
 #include <filesystem>
-#include <future>
-#include <chrono>
 #include <random>
 
 namespace dfd
@@ -130,6 +128,8 @@ void P2PClient::run() {
             handleDrop(file_name);
         } else if (command == "help") {
             printHelp();
+        } else if (command == "crash") {
+            exit(-1);
         } else {
             std::cout << "Unknown command. Type 'help' for usage.\n";
         }
@@ -279,7 +279,11 @@ void P2PClient::handleIndex(const std::string& file_name) {
 
     int client_socket_fd = connectToServer(server_info);
     if (client_socket_fd < 0) {
-        return; //err reported already
+        SourceInfo new_host = findHost("",0);
+        client_socket_fd = connectToServer(new_host);
+        if (client_socket_fd < 0)
+            return;
+        // return; //err reported already
     }
 
     if (!sendOkay(client_socket_fd, request, "Failed to send index request."))
@@ -574,7 +578,11 @@ void P2PClient::handleDrop(const std::string& file_name) {
 
     int client_socket_fd = connectToServer(server_info);
     if (client_socket_fd < 0) {
-        return; //err reported already
+        SourceInfo new_host = findHost("",0);
+        client_socket_fd = connectToServer(new_host);
+        if (client_socket_fd < 0)
+            return;
+        // return; //err reported already
     }
 
     if (!sendOkay(client_socket_fd, drop_buff, "Failed to send drop request."))
