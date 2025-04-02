@@ -271,7 +271,7 @@ void handleConnectionThread(int client_fd, std::vector<std::thread>& workers) {
             if (worker_strikes[worker_id] > 0)
                 worker_strikes[worker_id] = 0;
 
-            if (*response.begin() == REG_SERVERS_LIST) {
+            if (*buffer.begin() == SERVER_REG) {
                 databaseSendNS(client_fd);
 
                 //stop recording
@@ -291,7 +291,7 @@ void handleConnectionThread(int client_fd, std::vector<std::thread>& workers) {
             tcp::sendMessage(client_fd, response);
             closeSocket(client_fd);
 
-            if (*response.begin() == REG_SERVERS_LIST) {
+            if (*buffer.begin() == SERVER_REG) {
                 SourceInfo si = parseNewServerReg(buffer);
                 // forward queued updates to the new server
                 dfd::massWriteSend(si, sync_message_queue);
