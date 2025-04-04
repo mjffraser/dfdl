@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 
 namespace dfd {
 
@@ -84,19 +85,55 @@ void closeSocket(int socket_fd) {
 namespace tcp {
 
 //TCP UTIL
-int connect(int socket_fd, const SourceInfo& connect_to) {
-    struct sockaddr_in serverAddr;
-    memset(&serverAddr, 0, sizeof(serverAddr)); // 0 out struct addr
+int connect(int                                 socket_fd,
+            const SourceInfo&                   connect_to,
+            const std::optional<struct timeval> connection_timeout) {
+    struct sockaddr_in server_address;
+    memset(&server_address, 0, sizeof(server_address)); // 0 out struct addr
     
-    serverAddr.sin_family       = AF_INET;
-    serverAddr.sin_port         = htons(connect_to.port);
-    serverAddr.sin_addr.s_addr  = inet_addr(connect_to.ip_addr.c_str());
+    server_address.sin_family       = AF_INET;
+    server_address.sin_port         = htons(connect_to.port);
+    server_address.sin_addr.s_addr  = inet_addr(connect_to.ip_addr.c_str());
     
-    if (::connect(socket_fd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
-        close(socket_fd);
-        return -1;
+    bool connect_okay = true;
+    if (!connection_timeout) {
+        //blocking connect
+        if (::connect(socket_fd, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) {
+            close(socket_fd);
+            return -1;
+        }
+    } else {
+        struct timeval timeout = connection_timeout.value();
+        
+        //set non-block
+        const int flags = fcntl(socket_fd, F_GETFL);
+        fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK);
+
+        ::connect(socket_fd, (struct sockaddr *)&server_address, sizeof(server_address));
+        fd_set fdset;
+        FD_ZERO(&fdset);
+        FD_SET(socket_fd, &fdset);
+
+        int res = select(socket_fd+1, NULL, &fdset, NULL, &timeout);
+        if (res == 1) {
+            //socket writable
+            int so_err;
+            socklen_t len = sizeof(so_err);
+
+            getsockopt(socket_fd, SOL_SOCKET, SO_ERROR, &so_err, &len);
+
+            //failed for some reason
+            if (so_err != 0) connect_okay = false; 
+        } else if (res <= 0) {
+            //timeout or other error
+            connect_okay = false;
+        }
+
+        fcntl(socket_fd, F_SETFL, flags);
     }
 
+    if (!connect_okay)
+        return -1;
     return EXIT_SUCCESS;
 }
 
