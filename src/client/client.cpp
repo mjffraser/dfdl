@@ -1,4 +1,3 @@
-
 #include "client/client.hpp"
 #include "networking/messageFormatting.hpp"
 #include "sourceInfo.hpp"
