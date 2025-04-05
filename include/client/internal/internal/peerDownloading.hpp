@@ -9,6 +9,10 @@
 #include <vector>
 namespace dfd {
 
+//PEER CONNECT TIMEOUT
+#define PEER_CONNECT_TIMEOUT_SEC 2 // seconds
+#define PEER_CONNECT_TIMEOUT_USEC 0 // microseconds
+
 //MAX THREADS TO OPEN
 #define SEED_THREAD_LIMIT 5
 

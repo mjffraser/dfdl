@@ -5,6 +5,10 @@
 
 namespace dfd {
 
+//RECV TIMEOUT
+#define RECV_TIMEOUT_SEC 1 // seconds
+#define RECV_TIMEOUT_USEC 750000 // microseconds
+
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * connectToSource
