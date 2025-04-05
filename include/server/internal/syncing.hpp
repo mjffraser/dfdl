@@ -5,7 +5,7 @@
 #include <vector>
 #include <queue>
 
-#include "server/internal/database/db.hpp"
+#include "server/internal/db.hpp"
 
 namespace dfd {
 

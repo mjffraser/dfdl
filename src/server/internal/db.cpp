@@ -1,11 +1,10 @@
-#include "server/internal/database/db.hpp"
-#include "server/internal/database/internal/types.hpp"
-#include "server/internal/database/internal/queries.hpp"
-#include "server/internal/database/internal/tableInfo.hpp"
+#include "server/internal/db.hpp"
+#include "server/internal/internal/databaseTypes.hpp"
+#include "server/internal/internal/databaseQueries.hpp"
+#include "server/internal/internal/databaseTableInfo.hpp"
 #include "sourceInfo.hpp"
 #include <chrono>
 #include <cstdlib>
-#include <iostream>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -152,8 +151,7 @@ std::string indexKey(const SourceInfo& indexer, const uint64_t uuid) {
 
 int Database::indexFile(const uint64_t     uuid, 
                         const SourceInfo&  indexer,
-                        const uint64_t     f_size,
-                        std::shared_mutex& db_lock) {
+                        const uint64_t     f_size) {
     //first check if indexer already exists and up-to-date
     std::string        peer_condition = PEER_KEY.first + "=" + std::to_string(indexer.peer_id);
     AttributeValuePair peer_pk        = std::make_pair(PEER_KEY.first, indexer.peer_id);
@@ -212,8 +210,7 @@ int Database::indexFile(const uint64_t     uuid,
 }
 
 int Database::dropIndex(const uint64_t     f_uuid,
-                        const uint64_t     c_uuid,
-                        std::shared_mutex& db_lock) {
+                        const uint64_t     c_uuid) {
     SourceInfo dummy_client; dummy_client.peer_id = c_uuid;
     std::string        index_key = indexKey(dummy_client, f_uuid);
     AttributeValuePair index_pk  = std::make_pair(INDEX_KEY.first, index_key);
@@ -226,9 +223,7 @@ int Database::dropIndex(const uint64_t     f_uuid,
 }
 
 int Database::grabSources(const uint64_t&          uuid,
-                          std::vector<SourceInfo>& dest, 
-                          std::atomic<bool>&       db_locking, 
-                          std::shared_mutex&       db_lock) {
+                          std::vector<SourceInfo>& dest) {
     std::vector<Row> peers;
 
     //select on file uuid
@@ -283,8 +278,7 @@ int Database::grabSources(const uint64_t&          uuid,
     return EXIT_SUCCESS;
 }
 
-int Database::updateClient(const SourceInfo&  indexer,
-                           std::shared_mutex& db_lock) {
+int Database::updateClient(const SourceInfo&  indexer) {
     std::string        peer_condition = PEER_KEY.first + "=" + std::to_string(indexer.peer_id);
     AttributeValuePair peer_pk        = std::make_pair(PEER_KEY.first, indexer.peer_id);
     std::vector<AttributeValuePair> peer_values = {
@@ -299,6 +293,20 @@ int Database::updateClient(const SourceInfo&  indexer,
                              peer_values,
                              peer_condition);
     return res;
+}
+
+Database* openDatabase(const std::string& db_path,
+                       std::shared_mutex& db_lock,
+                       std::atomic<bool>& db_locking) {
+    try {
+        return new Database(db_path, db_lock, db_locking);
+    } catch (const std::runtime_error&) {
+        return nullptr;
+    }
+}
+
+void closeDatabase(Database* db) {
+    if (db) delete db;
 }
 
 }

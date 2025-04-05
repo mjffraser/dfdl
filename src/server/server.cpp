@@ -10,7 +10,7 @@
 #include "server/internal/syncing.hpp"
 #include "sourceInfo.hpp"
 #include "networking/socket.hpp"
-#include "server/internal/database/db.hpp"
+#include "server/internal/db.hpp"
 #include "networking/messageFormatting.hpp"
 
 //other imports std::
@@ -817,7 +817,7 @@ int run_server(const uint16_t     port,
     }
     
     //open database
-    db = new Database("name.db");
+    // db = new Database("name.db");
 
     //output msg
     std::cout << "DB setup complete." << std::endl;
