@@ -66,6 +66,28 @@ ssize_t forwardRegistration(std::vector<uint8_t>& reg_message,
 
 //forwards standard write requests, takes in: message, servers, expected code of the msg, and forward msg creation
 //forward request is called by below functions, and should never be called directly
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * forwardRequest
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> sends a write request (INDEX, DROP, REREGISTER) to all known servers as
+ *    a forwarded request (INDEX_FORWARD, etc.).
+ *
+ *    used by other funcctions not directly called
+ *
+ * Takes:
+ * -> initial_msg:
+ *    the original request message (must match expected_code)
+ * -> servers:
+ *    the list of servers to forward to
+ * -> expected_code:
+ *    expected code
+ *
+ * Returns:
+ * -> a list of servers that failed to acknowledge the forwarded request
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
 std::vector<SourceInfo> forwardRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers,
