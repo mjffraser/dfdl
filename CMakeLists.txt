@@ -33,6 +33,12 @@ set(NETWORKING_SRC
 
 set(CLIENT_SRC
     src/client/client.cpp
+    src/client/internal/clientConfigs.cpp
+    src/client/internal/downloadFiles.cpp
+    src/client/internal/peerRequests.cpp
+    src/client/internal/serverRequests.cpp
+    src/client/internal/internal/clientNetworking.cpp
+    src/client/internal/internal/peerDownloading.cpp
 )
 
 set(ALL_SRC
