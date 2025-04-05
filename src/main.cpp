@@ -27,6 +27,12 @@ bool isServer(int argc, char **argv) {
         try {
             if (std::string(argv[i]) == "--port")
                 if (i+1 < argc) port = std::stoi(argv[i+1]);
+
+            //listen addr
+            if (std::string(argv[i]) == "--listen") {
+                if (i+1 < argc)                 listen_addr = argv[i+1];
+                if (listen_addr == "localhost") listen_addr = "127.0.0.1";
+            }
         } catch (...) {
             std::cerr << "USAGE: --port <#>" << std::endl;
             exit(-1);
@@ -70,11 +76,7 @@ bool isServer(int argc, char **argv) {
                 download_dir = argv[i+1];
         }
 
-        //listen addr
-        if (std::string(argv[i]) == "--listen") {
-            if (i+1 < argc)                 listen_addr = argv[i+1];
-            if (listen_addr == "localhost") listen_addr = "127.0.0.1";
-        }
+        
     }
 
     //check what we got
@@ -99,11 +101,13 @@ bool isServer(int argc, char **argv) {
         exit(-1);
     }
 
+    if (listen_addr.length() == 0) {
+        std::cerr << "Missing listen IP!" << std::endl;
+        exit(-1);
+    }
+
     if (is_client) {
-        if (listen_addr.length() == 0) {
-            std::cerr << "Missing listen IP!" << std::endl;
-            exit(-1);
-        }
+        
 
         if (port != 0 && !(port < 65535 && port > 1023)){
             std::cerr << "Port must be between 1024 & 65535 inclusive." << std::endl;
@@ -136,7 +140,7 @@ bool isServer(int argc, char **argv) {
 int main(int argc, char** argv) {
     bool server = isServer(argc, argv); //doubles as arg parsing
     if (server) {
-        dfd::run_server(port, connect_ip, connect_port);
+        dfd::run_server(listen_addr, port, connect_ip, connect_port);
         return 0;
     }
 

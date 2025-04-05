@@ -1,12 +1,16 @@
 #pragma once
 
+#include <atomic>
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <array>
 
 #include "sourceInfo.hpp"
 
 namespace dfd {
+
+#define WORKER_THREADS 5
 
 //forward declarations
 class  Database;
@@ -72,6 +76,17 @@ void joinNetwork(const SourceInfo&        known_server,
 void listenThread(const uint16_t            port,
                   std::vector<std::thread>& db_workers,
                   std::mutex&               election_mtx);
+
+
+void workerThread(std::atomic<bool>&                             server_running,
+                  int                                            thread_ind,
+                  bool                                           writer,
+                  std::array<std::atomic<bool>, WORKER_THREADS>& worker_stats,
+                  std::array<uint16_t, WORKER_THREADS-1>&        read_workers,
+                  std::array<uint16_t, WORKER_THREADS-1>&        election_listeners,
+                  uint16_t&                                      write_worker,
+                  std::atomic<int>&                              setup_workers,
+                  std::atomic<int>&                              setup_election_workers);
 
 
 } //dfd

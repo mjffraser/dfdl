@@ -149,6 +149,18 @@ std::string indexKey(const SourceInfo& indexer, const uint64_t uuid) {
     return std::to_string(indexer.peer_id) + "|" + std::to_string(uuid);
 }
 
+//resets db_locking when destroyed
+struct WriteLocker {
+    std::atomic<bool>& db_locking;
+    WriteLocker(std::atomic<bool>& flag) : db_locking(flag) {
+        db_locking = true;
+    }
+
+    ~WriteLocker() {
+        db_locking = false;
+    }
+};
+
 int Database::indexFile(const uint64_t     uuid, 
                         const SourceInfo&  indexer,
                         const uint64_t     f_size) {
@@ -160,7 +172,11 @@ int Database::indexFile(const uint64_t     uuid,
         {PEER_ATTRIBUTES[1].first, indexer.port}
     };
 
-    //lock on db
+    //start locking
+    WriteLocker locking(db_locking);
+
+    //with lock on db
+    //begin critical section
     { 
         std::unique_lock<std::shared_mutex> lock(db_lock);
 
@@ -202,9 +218,10 @@ int Database::indexFile(const uint64_t     uuid,
                             index_values, 
                             index_condition);
         if (res == EXIT_FAILURE)
-            return EXIT_FAILURE;
+            return EXIT_FAILURE; 
         
     }
+    //end critical section
 
     return EXIT_SUCCESS;
 }
@@ -214,6 +231,8 @@ int Database::dropIndex(const uint64_t     f_uuid,
     SourceInfo dummy_client; dummy_client.peer_id = c_uuid;
     std::string        index_key = indexKey(dummy_client, f_uuid);
     AttributeValuePair index_pk  = std::make_pair(INDEX_KEY.first, index_key);
+
+    WriteLocker locking(db_locking);
 
     std::unique_lock<std::shared_mutex> lock(db_lock);
     auto err_val = doDelete(db, INDEX_NAME, index_pk);
@@ -285,6 +304,9 @@ int Database::updateClient(const SourceInfo&  indexer) {
         {PEER_ATTRIBUTES[0].first, indexer.ip_addr},
         {PEER_ATTRIBUTES[1].first, indexer.port}
     };
+
+    //start locking
+    WriteLocker locking(db_locking);
 
     std::unique_lock<std::shared_mutex> lock(db_lock);
     int res = insertOrUpdate(db,

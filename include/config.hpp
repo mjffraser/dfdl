@@ -5,6 +5,8 @@
 
 namespace dfd {
 
+#define WORKER_THREADS 5
+
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Config

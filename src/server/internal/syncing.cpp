@@ -5,7 +5,7 @@
 #include <ostream>
 #include "networking/fileParsing.hpp"
 #include "sourceInfo.hpp"
-#include "server/internal/database/db.hpp"
+#include "server/internal/db.hpp"
 #include "networking/fileParsing.hpp"
 #include <iostream>
 #include <optional>
