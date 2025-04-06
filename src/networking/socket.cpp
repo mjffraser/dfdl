@@ -176,6 +176,7 @@ ssize_t recvMessage(int                   socket_fd,
 
         buffer.resize(total_recv);
         if (buffer.size() == 1 && *buffer.begin() == KEEP_ALIVE) {
+            std::cout << "kept_alive" << std::endl;
             buffer.clear();
             continue;
         }

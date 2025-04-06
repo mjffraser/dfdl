@@ -2,7 +2,9 @@
 #include "networking/messageFormatting.hpp"
 #include "server/internal/internal/electionThread.hpp"
 #include "server/internal/internal/workerActions.hpp"
+#include "server/internal/internal/clientConnection.hpp"
 #include "networking/socket.hpp"
+
 #include <cstdlib>
 #include <iostream>
 #include <queue>
@@ -141,12 +143,15 @@ void joinNetwork(const SourceInfo&        known_server,
     
 }
 
-void listenThread(std::atomic<bool>&                       server_running,
-                  const std::string&                       ip,
-                  const uint16_t                           port,
-                  std::array<std::thread, WORKER_THREADS>& db_workers,
-                  std::mutex&                              election_mtx,
-                  SourceInfo&                              our_address) {
+void listenThread(std::atomic<bool>&                               server_running,
+                  const std::string&                               ip,
+                  const uint16_t                                   port,
+                  std::array<std::thread,       WORKER_THREADS  >& workers,
+                  std::array<std::atomic<bool>, WORKER_THREADS  >& worker_stats,
+                  std::array<std::atomic<int>,  WORKER_THREADS  >& worker_strikes,
+                  std::array<uint16_t,          WORKER_THREADS-1>& read_workers,
+                  uint16_t&                                        write_worker,
+                  std::mutex&                                      election_mtx) {
     ///////////////////////////////////////////////////////////////////////
     //SETUP PROCESS
     auto socket = openSocket(true, port);
@@ -163,6 +168,7 @@ void listenThread(std::atomic<bool>&                       server_running,
         return;
     }
 
+    std::atomic<int> next_reader = 0;
     ///////////////////////////////////////////////////////////////////////
     //MAIN LOOP
     while (server_running) {
@@ -171,7 +177,16 @@ void listenThread(std::atomic<bool>&                       server_running,
         if (client_sock < 0) {
             continue;
         } else {
-            std::thread();
+            std::thread client_conn(clientConnection,
+                                    client_sock,
+                                    std::ref(next_reader),
+                                    std::ref(workers),
+                                    std::ref(worker_stats),
+                                    std::ref(worker_strikes),
+                                    std::ref(read_workers),
+                                    std::ref(write_worker),
+                                    std::ref(election_mtx));
+            client_conn.detach();
         }
     }
 

@@ -59,7 +59,7 @@ void electionThread(std::atomic<bool>&                             server_runnin
                 if (res == EXIT_FAILURE) {
                     //ELECT LEADER HERE
                     in_election = false;
-                    SourceInfo asker; asker.ip_addr         = "127.0.0.1"; asker.port     = requester_port;
+                    SourceInfo asker; asker.ip_addr = "127.0.0.1"; asker.port = requester_port;
                     udp::sendMessage(listener, asker, {LEADER_X, (uint8_t)thread_ind});
                 } else if (res == EXIT_SUCCESS) {
                     //if we got a message

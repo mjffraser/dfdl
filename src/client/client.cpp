@@ -290,8 +290,10 @@ void P2PClient::handleIndex(const std::string& file_name) {
         return;
 
     std::vector<uint8_t> buffer;
-    if (!recvOkay(client_socket_fd, buffer, "Failed to receive index response."))
+    if (!recvOkay(client_socket_fd, buffer, "Failed to receive index response.")) {
+        std::cout << (int)buffer[0] << std::endl;
         return;
+    }
 
     if (!checkCode(client_socket_fd, buffer, INDEX_OK, true))
         return;

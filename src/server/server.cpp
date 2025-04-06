@@ -108,19 +108,48 @@ void run_server(const std::string& ip,
                               std::ref(ip),
                               port,
                               std::ref(workers),
-                              std::ref(election_mtx),
-                              std::ref(our_address));
+                              std::ref(worker_stats),
+                              std::ref(worker_strikes),
+                              std::ref(read_workers),
+                              std::ref(write_worker),
+                              std::ref(election_mtx));
     
     ///////////////////////////////////////////////////////////////////////////
     //STEP 3: (OPTIONALLY) CONNECT TO ANOTHER SERVER
     if (!known_server.ip_addr.empty())
         joinNetwork(known_server, my_db, other_servers);
 
+    std::cout << "SERVER SETUP COMPLETE." << std::endl;
     ///////////////////////////////////////////////////////////////////////////
     //MAIN LOOP: POLL THREAD POOL EVERY 5s FOR FAILURES
+    while (server_running) {
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::unique_lock<std::mutex> lock(election_mtx);
+        for (int i = 0; i < WORKER_THREADS-1; ++i) {
+            if (worker_stats[i]) continue;
+            workers[i].join();
+            setup_workers--;
+            setup_election_workers--;
+            workers[i] = std::thread(workerThread,
+                                     std::ref(server_running),
+                                     i,
+                                     false,
+                                    std::ref(worker_stats),
+                                    std::ref(worker_strikes),
+                                    std::ref(read_workers),
+                                    std::ref(election_listeners),
+                                    std::ref(write_worker),
+                                    std::ref(setup_workers),
+                                    std::ref(setup_election_workers),
+                                    my_db); 
+        }
+    }
 
     ///////////////////////////////////////////////////////////////////////////
     //STEP 4: CLEANUP
+    for (auto& w : workers) {
+        w.join();
+    }
 
     closeDatabase(my_db);
 }

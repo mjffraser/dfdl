@@ -14,13 +14,18 @@ set(LIB_SRC
 
 #all server src files
 set(SERVER_SRC
+    src/server/server.cpp
+
+    #server internals
     src/server/internal/db.cpp
-    src/server/internal/internal/databaseQueries.cpp
     src/server/internal/syncing.cpp
     src/server/internal/serverThreads.cpp
+
+    #further internals
+    src/server/internal/internal/databaseQueries.cpp
     src/server/internal/internal/electionThread.cpp
     src/server/internal/internal/workerActions.cpp
-    src/server/server.cpp
+    src/server/internal/internal/clientConnection.cpp
 )
 
 #all networking & API src files

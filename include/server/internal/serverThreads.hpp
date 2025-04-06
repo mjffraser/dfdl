@@ -70,12 +70,15 @@ void joinNetwork(const SourceInfo&        known_server,
  *    lock to do so in a safe manner.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-void listenThread(std::atomic<bool>&                       server_running,
-                  const std::string&                       ip,
-                  const uint16_t                           port,
-                  std::array<std::thread, WORKER_THREADS>& db_workers,
-                  std::mutex&                              election_mtx,
-                  SourceInfo&                              our_address);
+void listenThread(std::atomic<bool>&                               server_running,
+                  const std::string&                               ip,
+                  const uint16_t                                   port,
+                  std::array<std::thread,       WORKER_THREADS  >& workers,
+                  std::array<std::atomic<bool>, WORKER_THREADS  >& worker_stats,
+                  std::array<std::atomic<int>,  WORKER_THREADS  >& worker_strikes,
+                  std::array<uint16_t,          WORKER_THREADS-1>& read_workers,
+                  uint16_t&                                        write_worker,
+                  std::mutex&                                      election_mtx);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
