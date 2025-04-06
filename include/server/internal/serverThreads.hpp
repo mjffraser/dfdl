@@ -60,10 +60,27 @@ void joinNetwork(const SourceInfo&        known_server,
  *    This is designed to be opened as a thread.
  *
  * Takes:
+ * -> server_running:
+ *    An atomic flag for if the server should enter the shutdown phase, and this
+ *    function should exit as soon as possible.
+ * -> ip:
+ *    Not currently used. For syncing.
  * -> port:
  *    The port to open on.
- * -> db_workers:
+ * -> workers:
  *    The vector of database worker threads.
+ * -> worker_stats:
+ *    An array that corresponds to every threads current status. This is what
+ *    this thread will use to flag its shutdown.
+ * -> worker_strikes:
+ *    An array that corresponds to every threads current failed responses.
+ *    This thread will simply 0 this on startup.
+ * -> read_workers:
+ *    An array of the ports of the various read workers. If this thread is a
+ *    read worker, its listening sockets port will be at
+ *    read_workers[thread_ind].
+ * -> write_worker:
+ *    The port of the write workers listening socket.
  * -> election_mtx:
  *    The mutex to aquire a lock on to call an election. Any function including
  *    this one that attempts to modify db_workers in any way must aquire this
