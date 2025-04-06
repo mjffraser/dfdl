@@ -9,12 +9,17 @@
 #include <vector>
 namespace dfd {
 
-//PEER CONNECT TIMEOUT
+// PEER CONNECT TIMEOUT
 #define PEER_CONNECT_TIMEOUT_SEC 2 // seconds
 #define PEER_CONNECT_TIMEOUT_USEC 0 // microseconds
 
-//MAX THREADS TO OPEN
+// MAX THREADS TO OPEN
 #define SEED_THREAD_LIMIT 5
+
+// CHUNK DOWNLOAD RETURN CODES
+#define SUCCESS 0
+#define SEND_FAIL 1
+#define RECV_FAIL 2
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -76,5 +81,39 @@ void downloadThread(const uint64_t                 file_uuid,
                     std::queue<size_t>&            done_chunks,
                     std::mutex&                    done_chunks_mtx,
                     std::condition_variable&       chunk_ready);
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * downloadChunk
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Downloads a chunk from a peer. This function is called by the main thread
+ *    when it tries to download the first chunk, and also from the worker threads
+ *    when they are assigned a chunk to download.
+ *
+ * Takes:
+ * -> file_uuid:
+ *    The UUID of the file to download chunk for.
+ * -> sock:
+ *    The socket to connect to the peer with.
+ * -> chunk_index:
+ *    The index of the chunk to download.
+ * -> f_size:
+ *    Optional pointer to file size, which is populated by the function and may be 
+ *    used to calculate the number of chunks.
+ * 
+ * Returns:
+ * -> On success:
+ *    CHUNK_DOWNLOADED
+ * -> On failure:
+ *    SEND_FAIL or RECV_FAIL, depending on which failed. A SEND_FAIL can probably be
+ *    ignored, but a RECV_FAIL indicates the peer is bad and should be removed from
+ *    the sources list.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int downloadChunk(const uint64_t                   file_uuid,
+                  const int                        sock,
+                  const size_t                     chunk_index,
+                  std::optional<std::pair<uint64_t, 
+                  std::string>>*                   f_info = nullptr);
 
 }

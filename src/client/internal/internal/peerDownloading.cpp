@@ -22,9 +22,52 @@ namespace dfd
                         std::mutex &done_chunks_mtx,
                         std::condition_variable &chunk_ready)
     {
+        // Select a peer and mark as in-use
+        std::optional<size_t> peer_index;
+        {
+            std::lock_guard<std::mutex> lock(source_mtx);
+            for (size_t i = 0; i < sources.size(); ++i)
+            {
+                if (source_stats[i])
+                {
+                    source_stats[i] = false; // mark as in-use
+                    peer_index = i;
+                    break;
+                }
+            }
+        }
+
+        if (!peer_index.has_value())
+        {
+             // No available peer, exit this thread
+            return;
+        }
+
+        const SourceInfo &peer = sources[peer_index.value()];
+
+        // Connect to the peer
+        struct timeval tv;
+        tv.tv_sec = PEER_CONNECT_TIMEOUT_SEC;
+        tv.tv_usec = PEER_CONNECT_TIMEOUT_USEC;
+
+        int sock = connectToSource(peer, tv);
+        if (sock < 0)
+        {
+            std::lock_guard<std::mutex> lock(bad_peer_mtx);
+            bad_peers.push_back(peer);
+            return;
+        }
+
+
         while (true)
         {
-            // Step 1: Get next chunk index
+            if (bad_peers.size() == sources.size())
+            {
+                // All peers are bad, exit thread
+                return;
+            }
+
+            // Get next chunk index
             size_t chunk_index;
             {
                 std::lock_guard<std::mutex> lock(remaining_chunks_mtx);
@@ -36,80 +79,23 @@ namespace dfd
                 remaining_chunks.pop();
             }
 
-            // Step 2: Select a peer and mark as in-use
-            std::optional<size_t> peer_index;
-            {
-                std::lock_guard<std::mutex> lock(source_mtx);
-                for (size_t i = 0; i < sources.size(); ++i)
-                {
-                    if (source_stats[i])
-                    {
-                        source_stats[i] = false; // mark as in-use
-                        peer_index = i;
-                        break;
-                    }
-                }
-            }
+            
 
-            if (!peer_index.has_value())
-            {
-                // Couldn’t find a free peer — push chunk back and retry later
-                {
-                    std::lock_guard<std::mutex> lock(remaining_chunks_mtx);
-                    remaining_chunks.push(chunk_index);
-                }
-                std::this_thread::yield(); // let another thread try
-                continue;
-            }
-
-            const SourceInfo& peer = sources[peer_index.value()];
-
-            // Step 3: Connect to the peer
-            struct timeval tv;
-            tv.tv_sec = PEER_CONNECT_TIMEOUT_SEC;
-            tv.tv_usec = PEER_CONNECT_TIMEOUT_USEC;
-
-            int sock = connectToSource(peer, tv);
-            if (sock < 0)
+            int download_status = downloadChunk(file_uuid, sock, chunk_index);
+            if (download_status == RECV_FAIL)
             {
                 std::lock_guard<std::mutex> lock(bad_peer_mtx);
                 bad_peers.push_back(peer);
                 continue;
             }
-
-            // Step 4: Send download request
-            std::vector<uint8_t> download_req = createDownloadInit(file_uuid, std::nullopt);
-            if (!sendOkay(sock, download_req)) {
-                // How to handle?
+            else if (download_status == SEND_FAIL)
+            {
+                std::lock_guard<std::mutex> lock(remaining_chunks_mtx);
+                remaining_chunks.push(chunk_index);
                 continue;
             }
 
-            std::vector<uint8_t> download_ack;
-            if (!recvOkay(sock, download_ack, DOWNLOAD_CONFIRM)) {
-                // How to handle?
-                continue;
-            }
-            auto f_info = parseDownloadConfirm(download_ack);
-            uint64_t f_size = f_info.first;
-            std::string f_name = f_info.second;
-
-            // Step 5: Try to receive chunk
-            std::vector<uint8_t> chunk_req = createChunkRequest(chunk_index);
-            if (!sendOkay(sock, chunk_req)) {
-                // How to handle?
-                continue;
-            }
-
-            std::vector<uint8_t> chunk_data;
-            if (!recvOkay(sock, chunk_data, DATA_CHUNK)) {
-                // How to handle?
-                continue;
-            }
-
-            DataChunk dc = parseDataChunk(chunk_data);
-            unpackFileChunk(f_name, dc.second, dc.second.size(), chunk_index);
-        
-            // Step 6: Notify main thread of done chunk
+            // Notify main thread of done chunk
             std::cout << "Downloaded chunk " << chunk_index << std::endl;
             {
                 std::lock_guard<std::mutex> lock(done_chunks_mtx);
@@ -119,5 +105,49 @@ namespace dfd
 
             closeSocket(sock);
         }
+    }
+
+    int downloadChunk(const uint64_t file_uuid,
+                      const int sock,
+                      const size_t chunk_index,
+                      std::optional<std::pair<uint64_t, std::string>>* f_info = nullptr)
+    {
+        // Send download request
+        std::vector<uint8_t> download_req = createDownloadInit(file_uuid, std::nullopt);
+        if (!sendOkay(sock, download_req))
+        {
+            return SEND_FAIL;
+        }
+
+        std::vector<uint8_t> download_ack;
+        if (!recvOkay(sock, download_ack, DOWNLOAD_CONFIRM))
+        {
+            return RECV_FAIL;
+        }
+
+        auto file_info = parseDownloadConfirm(download_ack);
+        auto f_name = file_info.second;
+        if (f_info)
+        {
+            *f_info = file_info;
+        }
+
+        // Try to receive chunk
+        std::vector<uint8_t> chunk_req = createChunkRequest(chunk_index);
+        if (!sendOkay(sock, chunk_req))
+        {
+            return SEND_FAIL;
+        }
+
+        std::vector<uint8_t> chunk_data;
+        if (!recvOkay(sock, chunk_data, DATA_CHUNK))
+        {
+            return RECV_FAIL;
+        }
+
+        DataChunk dc = parseDataChunk(chunk_data);
+        unpackFileChunk(f_name, dc.second, dc.second.size(), chunk_index);
+
+        return SUCCESS;
     }
 }

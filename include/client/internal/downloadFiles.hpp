@@ -38,7 +38,7 @@ namespace dfd {
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 int attemptFileDownload(const uint64_t file_uuid,
-                        const std::vector<SourceInfo>& sources,
-                        const std::vector<SourceInfo>& bad_sources);
+                        std::vector<SourceInfo>& sources,
+                        std::vector<SourceInfo>& bad_sources);
 
 }
