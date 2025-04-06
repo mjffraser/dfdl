@@ -29,11 +29,6 @@ struct SourceInfo;
  *    If this function fails at any point an error message is printed to stdout.
  *    No crash will occur.
  *
- *    This is designed to be opened as a thread so requests to this database can
- *    still be received from other servers while the database is migrating. It's
- *    expected that no clients will be sending messages to this server while
- *    it's doing its initial registration with the network.
- *
  * Takes:
  * -> known_server:
  *    The server to connect to.
@@ -73,20 +68,77 @@ void joinNetwork(const SourceInfo&        known_server,
  *    lock to do so in a safe manner.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-void listenThread(const uint16_t            port,
+void listenThread(std::atomic<bool>&        server_running,
+                  const std::string&        ip,
+                  const uint16_t            port,
                   std::vector<std::thread>& db_workers,
-                  std::mutex&               election_mtx);
+                  std::mutex&               election_mtx,
+                  SourceInfo&               our_address);
 
-
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * workerThread
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Opens a listening socket which will accept incoming client requests
+ *    buffered by their respective client threads. Also opens an election thread
+ *    that corresponds to this worker, and will conduct elections among the
+ *    threads when needed. This thread will carry out client requests to the
+ *    database and return the reply back to the client handling thread.
+ *
+ *    This is designed to be opened as a thread.
+ *
+ *    If this function fails at an point it will attempt to mark itself for
+ *    restart before doing so. Any non-OS error will be caught and this
+ *    thread will shut itself down and mark for restart.
+ *
+ * Takes:
+ * -> server_running:
+ *    If this flag is false, this thread will make every effort to shutdown
+ *    safely as soon as possible.
+ * -> thread_ind:
+ *    The index that refers to this threads' position in the workers thread
+ *    pool maintained by the server. The last index corresponds to the write
+ *    thread.
+ * -> writer:
+ *    If this thread was opened as a writer.
+ * -> worker_stats:
+ *    An array that corresponds to every threads current status. This is what
+ *    this thread will use to flag its shutdown.
+ * -> worker_strikes:
+ *    An array that corresponds to every threads current failed responses.
+ *    This thread will simply 0 this on startup.
+ * -> read_workers:
+ *    An array of the ports of the various read workers. If this thread is a
+ *    read worker, its listening sockets port will be at
+ *    read_workers[thread_ind].
+ * -> election_listeners:
+ *    An array similar to the above, but for the election thread listeners
+ *    instead.
+ * -> write_worker:
+ *    The port of the write workers listening socket.
+ * -> setup_workers:
+ *    A counter of how many worker threads have successfully set themselves up.
+ *    This thread should only increment this counter once.
+ * -> setup_election_workers:
+ *    A counter of how many election threads have successfully set themselves
+ *    up. This thread should pass this to its election thread on creation for
+ *    it to increment.
+ * -> db:
+ *    The Database class instance for this server.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
 void workerThread(std::atomic<bool>&                             server_running,
                   int                                            thread_ind,
                   bool                                           writer,
                   std::array<std::atomic<bool>, WORKER_THREADS>& worker_stats,
+                  std::array<std::atomic<int>,  WORKER_THREADS>& worker_strikes, 
                   std::array<uint16_t, WORKER_THREADS-1>&        read_workers,
                   std::array<uint16_t, WORKER_THREADS-1>&        election_listeners,
                   uint16_t&                                      write_worker,
                   std::atomic<int>&                              setup_workers,
-                  std::atomic<int>&                              setup_election_workers);
+                  std::atomic<int>&                              setup_election_workers,
+                  Database*                                      db);
 
 
 } //dfd
