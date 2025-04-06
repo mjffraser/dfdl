@@ -18,6 +18,8 @@ set(SERVER_SRC
     src/server/internal/internal/databaseQueries.cpp
     src/server/internal/syncing.cpp
     src/server/internal/serverThreads.cpp
+    src/server/internal/internal/electionThread.cpp
+    src/server/internal/internal/workerActions.cpp
     src/server/server.cpp
 )
 

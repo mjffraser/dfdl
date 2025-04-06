@@ -6,6 +6,10 @@
 #include <cstdlib>
 #include <iostream>
 #include <queue>
+#include <thread>
+#include <atomic>
+#include <array>
+#include <chrono>
 #include <condition_variable>
 
 namespace dfd {
@@ -137,12 +141,12 @@ void joinNetwork(const SourceInfo&        known_server,
     
 }
 
-void listenThread(std::atomic<bool>&        server_running,
-                  const std::string&        ip,
-                  const uint16_t            port,
-                  std::vector<std::thread>& db_workers,
-                  std::mutex&               election_mtx,
-                  SourceInfo&               our_address) {
+void listenThread(std::atomic<bool>&                       server_running,
+                  const std::string&                       ip,
+                  const uint16_t                           port,
+                  std::array<std::thread, WORKER_THREADS>& db_workers,
+                  std::mutex&                              election_mtx,
+                  SourceInfo&                              our_address) {
     ///////////////////////////////////////////////////////////////////////
     //SETUP PROCESS
     auto socket = openSocket(true, port);
@@ -208,7 +212,7 @@ void workerThread(std::atomic<bool>&                             server_running,
             election_thread = std::thread(electionThread, 
                                           std::ref(server_running),
                                           thread_ind,
-                                          election_listener,
+                                          election_listener.value(),
                                           std::ref(call_election),
                                           std::ref(requester_port),
                                           std::ref(worker_stats),

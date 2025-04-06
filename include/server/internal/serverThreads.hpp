@@ -1,7 +1,9 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <mutex>
+#include <queue>
 #include <thread>
 #include <vector>
 #include <array>
@@ -68,12 +70,12 @@ void joinNetwork(const SourceInfo&        known_server,
  *    lock to do so in a safe manner.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-void listenThread(std::atomic<bool>&        server_running,
-                  const std::string&        ip,
-                  const uint16_t            port,
-                  std::vector<std::thread>& db_workers,
-                  std::mutex&               election_mtx,
-                  SourceInfo&               our_address);
+void listenThread(std::atomic<bool>&                       server_running,
+                  const std::string&                       ip,
+                  const uint16_t                           port,
+                  std::array<std::thread, WORKER_THREADS>& db_workers,
+                  std::mutex&                              election_mtx,
+                  SourceInfo&                              our_address);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

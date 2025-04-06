@@ -105,7 +105,7 @@ void run_server(const std::string& ip,
     //STEP 2: STARTUP LISTENER THREAD
     std::thread listen_thread(listenThread, 
                               std::ref(server_running),
-                              ip,
+                              std::ref(ip),
                               port,
                               std::ref(workers),
                               std::ref(election_mtx),
@@ -118,7 +118,6 @@ void run_server(const std::string& ip,
 
     ///////////////////////////////////////////////////////////////////////////
     //MAIN LOOP: POLL THREAD POOL EVERY 5s FOR FAILURES
-
 
     ///////////////////////////////////////////////////////////////////////////
     //STEP 4: CLEANUP

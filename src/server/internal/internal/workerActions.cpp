@@ -1,4 +1,4 @@
-#include "server/internal/internal/internal/workerActions.hpp"
+#include "server/internal/internal/workerActions.hpp"
 #include "networking/messageFormatting.hpp"
 #include "server/internal/db.hpp"
 
