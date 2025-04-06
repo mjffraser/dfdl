@@ -25,6 +25,12 @@ struct SourceInfo {
     uint64_t    peer_id;
     std::string ip_addr;
     uint16_t    port;
+
+    bool operator==(const SourceInfo& other) const {
+        return peer_id == other.peer_id &&
+               ip_addr == other.ip_addr &&
+               port == other.port;
+    }
 };
 
 }
