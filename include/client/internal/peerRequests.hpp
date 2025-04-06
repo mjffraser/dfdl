@@ -4,6 +4,7 @@
 
 namespace dfd {
 
+#define MAX_PEER_THREADS 5
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -42,6 +43,6 @@ void seedToPeer(std::atomic<bool>& shutdown, int peer_sock);
  *    threads it's currently managing first.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-void clientListener(std::atomic<bool>& shutdown);
+void clientListener(std::atomic<bool>& shutdown, std::atomic<uint16_t>& port);
 
 }
