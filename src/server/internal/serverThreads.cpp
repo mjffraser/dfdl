@@ -5,8 +5,131 @@
 #include "networking/socket.hpp"
 #include <cstdlib>
 #include <iostream>
+#include <queue>
+#include <condition_variable>
 
 namespace dfd {
+
+void controlMsgThread(std::atomic<bool>&                           server_running,
+                      std::queue<std::pair<SourceInfo, uint64_t>>& control_q,
+                      std::condition_variable&                     control_cv,
+                      std::mutex&                                  control_mtx,
+                      SourceInfo&                                  our_server) {
+
+    while(server_running) {
+        SourceInfo  faulty_client;
+        uint64_t    file_uuid;
+        {
+            std::unique_lock<std::mutex> lock(control_mtx);
+            control_cv.wait(lock, [&] {return !control_q.empty() || !server_running;});
+
+            if (!server_running) {
+                break;
+            } else {
+                auto [faulty_client, file_uuid] = control_q.front();
+                control_q.pop();
+            }
+        }
+        int num_of_attempts = 3;
+        bool client_reachable = false;
+        bool file_avalible = true;
+
+        struct timeval timeout;
+        timeout.tv_sec  = 5;
+        timeout.tv_usec = 0;
+
+        auto socket = openSocket(false, 0, false);
+        if (!socket) {
+            //handle fail to open
+            std::cerr << "[controlMsgThread] Failed to open socket\n";
+            return;
+        }
+
+        auto [sock_fd, my_port] = socket.value();
+
+        for (int i = 0; i < num_of_attempts; i++){
+            if (tcp::connect(sock_fd, faulty_client) != -1){
+                client_reachable = true;
+                break;
+            }
+        }
+
+        // attempt to download one chunk from client
+        while (client_reachable) {
+
+            // check if file exist on client
+            std::vector<uint8_t> control_msg = createDownloadInit(file_uuid, std::nullopt);
+            if (EXIT_FAILURE == tcp::sendMessage(sock_fd, control_msg)) {
+                std::cerr << "[controlMsgThread] Failed to send message to client.\n";
+                closeSocket(sock_fd);
+                return;
+            }
+
+            // expect client to ack back
+            std::vector<uint8_t> request_ack;
+            if (tcp::recvMessage(sock_fd, request_ack, timeout) < 0) {
+                client_reachable = false;
+                closeSocket(sock_fd);
+                break;
+            }
+
+            // check for ack code
+            if (request_ack.size() < 1 || request_ack[0] != DOWNLOAD_CONFIRM) {
+                file_avalible = false;
+                if (request_ack[0] == FAIL) {
+                    // error - client can't find file
+                } 
+                closeSocket(sock_fd);
+                break;
+            }
+
+            // terminate file download
+            tcp::sendMessage(sock_fd, {FINISH_DOWNLOAD});
+            closeSocket(sock_fd);
+            break;
+        }
+
+        if (!client_reachable || !file_avalible) {
+
+            auto updete_sock = openSocket(false, 0, false);
+            if (!updete_sock) {
+                //handle fail to open
+                std::cerr << "[controlMsgThread] Failed to open update socket\n";
+                return;
+            }
+
+            auto [updete_fd, updete_port] = updete_sock.value();
+
+            if (tcp::connect(updete_fd, our_server) < 0) {
+                std::cerr << "[controlMsgThread] Failed to connect with our server.\n";
+                closeSocket(updete_fd);
+                return;
+            }
+
+            IndexUuidPair id_pair(file_uuid, faulty_client.peer_id);
+            std::vector<uint8_t> drop_msg = createDropRequest(id_pair);
+            if (EXIT_FAILURE == tcp::sendMessage(updete_fd,drop_msg)) {
+                std::cerr << "[controlMsgThread] Failed to send message to our server.\n";
+                closeSocket(updete_fd);
+                return;
+            }
+
+            std::vector<uint8_t> update_respond;
+            if (tcp::recvMessage(updete_fd, update_respond, timeout) < 0) {
+                std::cerr << "[controlMsgThread] Failed to recv message from our server.\n";
+                closeSocket(updete_fd);
+                return;
+            }
+
+            if (update_respond[0] == FAIL) {
+                std::cerr << "[controlMsgThread]" << parseFailMessage(update_respond) << std::endl;
+            }
+
+            closeSocket(updete_fd);
+            return;
+        }
+    }
+}
 
 void joinNetwork(const SourceInfo&        known_server,
                  Database*                open_db,

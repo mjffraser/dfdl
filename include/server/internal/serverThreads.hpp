@@ -140,5 +140,14 @@ void workerThread(std::atomic<bool>&                             server_running,
                   std::atomic<int>&                              setup_election_workers,
                   Database*                                      db);
 
+/*
+*
+*/
+void controlMsgThread(std::atomic<bool>&                           server_running,
+                      std::queue<std::pair<SourceInfo, uint64_t>>& control_q,
+                      std::condition_variable&                     control_cv,
+                      std::mutex&                                  control_mtx,
+                      SourceInfo&                                  our_server);
+
 
 } //dfd

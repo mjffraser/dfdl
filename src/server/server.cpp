@@ -9,6 +9,8 @@
 #include <thread>
 #include <array>
 #include <unistd.h>
+#include <queue>
+#include <condition_variable>
 
 namespace dfd {
 
@@ -48,14 +50,18 @@ void run_server(const std::string& ip,
     //worker setup tracking
     std::atomic<int> setup_workers          = 0;
     std::atomic<int> setup_election_workers = 0;
-    
 
+    //lock and queue for controlMsg
+    std::mutex                                  control_mtx;
+    std::queue<std::pair<SourceInfo, uint64_t>> control_q;
+    std::condition_variable                     control_cv;
+    
     //lock for election
     std::mutex election_mtx;
 
     std::atomic<bool> server_running = true;
     ///////////////////////////////////////////////////////////////////////////
-    //STEP 1: STARTUP WORKER THREADS
+    //STEP 1: STARTUP WORKER THREADS AND CONTROL THREAD
     for (int i = 0; i < WORKER_THREADS; ++i) {
         bool is_write_thread;
         if (i == WORKER_THREADS-1) //write thread
@@ -75,6 +81,14 @@ void run_server(const std::string& ip,
                                  std::ref(setup_election_workers),
                                  my_db); 
     }
+
+    std::thread control_thread(controlMsgThread,
+                               std::ref(server_running),
+                               std::ref(control_q),
+                               std::ref(control_cv),
+                               std::ref(control_mtx),
+                               std::ref(our_address));
+    control_thread.detach();
 
     //pause to wait for setup to finish
     sleep(1);
