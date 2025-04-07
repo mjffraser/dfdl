@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <iostream>
 #include <filesystem>
 #include <fstream>
@@ -8,10 +9,80 @@ namespace dfd
 {
     int getHostListFromDisk(std::vector<SourceInfo> &dest, const std::string &host_path)
     {
+        dest.clear();
+
+        const std::filesystem::path p(host_path);
+        if (!p.has_parent_path() || std::filesystem::create_directories(p.parent_path()))
+        {
+            // ok
+        }
+
+        std::ifstream in(host_path);
+        if (!in) {
+            return EXIT_FAILURE;
+        }
+
+        auto trim = [](std::string& s) {
+            const char* ws = " \t\r\n";
+            s.erase(0, s.find_first_not_of(ws));
+            s.erase(s.find_last_not_of(ws) + 1);
+        };
+
+        std::string line;
+        while (std::getline(in, line)) {
+            trim(line);
+            if (line.empty() || line[0] == '#')
+                continue;
+
+            for (char& c : line) if (c == ',') c = ' ';
+
+            std::istringstream iss(line);
+            std::string peer_str, ip, port_str;
+            if (!(iss >> peer_str >> ip >> port_str) || (iss >> std::ws, !iss.eof()))
+                // wrong token count
+                return EXIT_FAILURE;
+
+            errno = 0;
+            char* end = nullptr;
+            unsigned long long peer_val = std::strtoull(peer_str.c_str(), &end, 10);
+            if (end == peer_str.c_str() || *end != '\0' || errno == ERANGE)
+                return EXIT_FAILURE;
+
+            errno = 0;
+            unsigned long port_val = std::strtoul(port_str.c_str(), &end, 10);
+            if (end == port_str.c_str() || *end != '\0' || errno == ERANGE || port_val > 65535)
+                return EXIT_FAILURE;
+
+            dest.push_back(SourceInfo{
+                static_cast<uint64_t>(peer_val),
+                std::move(ip),
+                static_cast<uint16_t>(port_val)
+            });
+        }
+
+        return EXIT_SUCCESS;
     }
 
     int storeHostListToDisk(const std::vector<SourceInfo> &hosts, const std::string &host_path)
     {
+        const std::filesystem::path p(host_path);
+        if (!p.has_parent_path() || std::filesystem::create_directories(p.parent_path()))
+        {
+            // ok
+        }
+
+        std::ofstream out(host_path, std::ios::trunc);
+        if (!out) {
+            return EXIT_FAILURE;
+        }
+
+        for (const auto& h : hosts) {
+            out << h.peer_id << ", " << h.ip_addr << ", " << h.port << '\n';
+            if (!out)
+                return EXIT_FAILURE;
+        }
+
+        return EXIT_SUCCESS;
     }
 
     uint64_t getMyUUID(const std::string &uuid_path)
