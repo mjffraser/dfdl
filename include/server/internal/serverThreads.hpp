@@ -18,32 +18,6 @@ namespace dfd {
 class  Database;
 struct SourceInfo;
 
-/*
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * joinNetwork
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * Description:
- * -> Connects to another server at the address provided in known_server.
- *    Receives a database from that server to merge into open_db, as well as a
- *    list of all servers in the network, and appends these servers to
- *    known_servers. Initiates the transfer by sending a SERVER_REG message.
- *
- *    If this function fails at any point an error message is printed to stdout.
- *    No crash will occur.
- *
- * Takes:
- * -> known_server:
- *    The server to connect to.
- * -> open_db:
- *    The database owned by *this* server, that is merged into.
- * -> known_servers:
- *    The list of known_servers maintained by this server, which is modified by
- *    this registration process.
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- */
-void joinNetwork(const SourceInfo&        known_server,
-                 Database*                open_db,
-                 std::vector<SourceInfo>& known_servers);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

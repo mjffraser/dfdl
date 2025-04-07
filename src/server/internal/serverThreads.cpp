@@ -137,12 +137,6 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
     }
 }
 
-void joinNetwork(const SourceInfo&        known_server,
-                 Database*                open_db,
-                 std::vector<SourceInfo>& known_servers) {
-    
-}
-
 void listenThread(std::atomic<bool>&                               server_running,
                   const std::string&                               ip,
                   const uint16_t                                   port,
