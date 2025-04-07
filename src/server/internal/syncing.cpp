@@ -18,6 +18,12 @@
 
 namespace dfd {
 
+
+////////////////////////////////////////////////////////////
+//RELATED TO MESSAGE FORWARDING
+////////////////////////////////////////////////////////////
+
+
 ssize_t forwardRegistration(std::vector<uint8_t>& reg_message,
                             const std::vector<SourceInfo>& servers) {
     if (*reg_message.begin() != SERVER_REG)
@@ -197,6 +203,11 @@ std::vector<SourceInfo> forwardReregRequest(
     return {};
 }
 
+
+////////////////////////////////////////////////////////////
+//ADDITIONAL UTILITY USED TO MODIFY OUR VECTOR OF KNOWN SERVERS
+////////////////////////////////////////////////////////////
+
 //removes any SourceInfo from known_servers that appears in failed_servers
 void removeFailedServers(std::vector<SourceInfo>& known_servers,
                         const std::vector<SourceInfo>& failed_servers) {
@@ -225,6 +236,13 @@ void removeFailedServers(std::vector<SourceInfo>& known_servers,
         }
     }
 }
+
+
+
+////////////////////////////////////////////////////////////
+//RELATED TO STARTUP SYNCRONIZATION
+////////////////////////////////////////////////////////////
+
 
 //sends database backup to the new server
 int databaseSendNS(int socket_fd) {
@@ -272,7 +290,6 @@ int databaseSendNS(int socket_fd) {
 
     return EXIT_SUCCESS;
 }
-
 //called by new server to receive and merge database
 int databaseReciveNS(int socket_fd, Database* db) {
     setDownloadDir(std::filesystem::current_path());
