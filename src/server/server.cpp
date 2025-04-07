@@ -1,6 +1,7 @@
 #include "server/server.hpp"
 #include "server/internal/db.hpp"
 #include "server/internal/serverThreads.hpp"
+#include "server/internal/serverStartup.hpp"
 #include "sourceInfo.hpp"
 
 #include <atomic>
