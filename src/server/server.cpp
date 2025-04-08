@@ -25,6 +25,9 @@ void run_server(const std::string& ip,
     our_address.ip_addr = ip;
     our_address.port    = port;
 
+    //global vector storing pairs of known server IPs and ports
+    std::vector<SourceInfo> known_servers;
+
     //if we're connecting to another server, we need the info
     SourceInfo known_server;
     std::vector<SourceInfo> other_servers;
@@ -80,7 +83,8 @@ void run_server(const std::string& ip,
                                  std::ref(write_worker),
                                  std::ref(setup_workers),
                                  std::ref(setup_election_workers),
-                                 my_db); 
+                                 my_db,
+                                 std::ref(known_servers)); 
     }
 
     std::thread control_thread(controlMsgThread,

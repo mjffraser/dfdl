@@ -3,6 +3,7 @@
 #include "server/internal/internal/electionThread.hpp"
 #include "server/internal/internal/workerActions.hpp"
 #include "server/internal/internal/clientConnection.hpp"
+#include "server/internal/syncing.hpp"
 #include "networking/socket.hpp"
 
 #include <cstdlib>
@@ -199,7 +200,8 @@ void workerThread(std::atomic<bool>&                             server_running,
                   uint16_t&                                      write_worker,
                   std::atomic<int>&                              setup_workers,
                   std::atomic<int>&                              setup_election_workers,
-                  Database*                                      db) {
+                  Database*                                      db,
+                  std::vector<SourceInfo>&                       known_servers) {
     try {
         ///////////////////////////////////////////////////////////////////////
         //SETUP PROCESS
@@ -291,20 +293,44 @@ void workerThread(std::atomic<bool>&                             server_running,
             //handle message
             std::vector<uint8_t> response;
             switch (*client_request.begin()) {
-                case INDEX_REQUEST:
+                //NOTE: added breaks to all cases cause was not sure if needed
+                case INDEX_REQUEST: {
+                    clientIndexRequest(client_request, response, db);
+                    auto failed_servers = forwardIndexRequest(client_request, known_servers);
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+                    break;
+                }
                 case INDEX_FORWARD: {
                     clientIndexRequest(client_request, response, db);
                     break;
                 }
 
-                case DROP_REQUEST:
+                case DROP_REQUEST: {
+                    clientDropRequest(client_request, response, db);
+                    auto failed_servers = forwardDropRequest(client_request, known_servers);
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+                    break;
+                }
                 case DROP_FORWARD: {
                     clientDropRequest(client_request, response, db);
+                    break;
                 }
 
-                case REREGISTER_REQUEST:
+                case REREGISTER_REQUEST: {
+                    clientReregisterRequest(client_request, response, db);
+                    auto failed_servers = forwardReregRequest(client_request, known_servers);
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+                    break;
+                }
                 case REREGISTER_FORWARD: {
                     clientReregisterRequest(client_request, response, db);
+                    break;
                 }
 
                 case SOURCE_REQUEST: {
