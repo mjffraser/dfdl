@@ -26,14 +26,15 @@ void run_server(const std::string& ip,
     our_address.port    = port;
 
     //global vector storing pairs of known server IPs and ports
+    //currently empty but by sending a source request via join network should do it
+    //join network currently broke
     std::vector<SourceInfo> known_servers;
 
     //if we're connecting to another server, we need the info
-    SourceInfo known_server;
-    std::vector<SourceInfo> other_servers;
+    SourceInfo target_server;
     if (!connect_ip.empty()) {
-        known_server.ip_addr = connect_ip;
-        known_server.port    = connect_port;
+        target_server.ip_addr = connect_ip;
+        target_server.port    = connect_port;
     }
 
     //start database, establish db locks
@@ -121,8 +122,8 @@ void run_server(const std::string& ip,
     
     ///////////////////////////////////////////////////////////////////////////
     //STEP 3: (OPTIONALLY) CONNECT TO ANOTHER SERVER
-    if (!known_server.ip_addr.empty())
-        joinNetwork(known_server, my_db, other_servers);
+    if (!target_server.ip_addr.empty())
+        joinNetwork(target_server, my_db, known_servers);
 
     std::cout << "SERVER SETUP COMPLETE." << std::endl;
     ///////////////////////////////////////////////////////////////////////////
