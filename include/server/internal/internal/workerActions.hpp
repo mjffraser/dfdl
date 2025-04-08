@@ -111,4 +111,27 @@ void clientSourceRequest(const std::vector<uint8_t>& client_request,
                               std::vector<uint8_t>&  response_dest,
                               Database*              db);
 
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * clientServerRegistration
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Adds a new server to known servers than forwards to all other servers a
+ *    forwarded server reg. Than makes responce = known_servers.
+ *
+ * Takes:
+ * -> client_request:
+ *    The message received from the client that begins with SERVER_REG.
+ * -> response_dest:
+ *    The vector to write the response message that can be sent back to the
+ *    requesting client.
+ * -> known_servers:
+ *    A pointer to the known servers vector to modify.
+ *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+void clientServerRegistration(std::vector<uint8_t>&      client_request,
+                                std::vector<uint8_t>&    response_dest,
+                                std::vector<SourceInfo>& known_servers);
+
 } //dfd

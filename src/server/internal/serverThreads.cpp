@@ -338,6 +338,17 @@ void workerThread(std::atomic<bool>&                             server_running,
                 }
 
                 //SYNCING STUFF
+                case SERVER_REG: {
+                    clientServerRegistration(client_request, response, known_servers);
+                    break;
+                }
+                //dident make a function for this one as its so simple
+                case FORWARD_SERVER_REG: {
+                    SourceInfo new_server = parseForwardServerReg(client_request);
+                    known_servers.push_back(new_server);
+                    response = {FORWARD_SERVER_OK};
+                    break;
+                }
                 
                 default: {
                     response = createFailMessage("Invalid message type.");

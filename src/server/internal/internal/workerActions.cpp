@@ -1,6 +1,7 @@
 #include "server/internal/internal/workerActions.hpp"
 #include "networking/messageFormatting.hpp"
 #include "server/internal/db.hpp"
+#include "server/internal/syncing.hpp"
 
 namespace dfd {
 
@@ -67,6 +68,21 @@ void clientSourceRequest(const std::vector<uint8_t>& client_request,
         response_dest = createSourceList(indexers);
 }
 
-
+//NOTE: no const on client request could mabye cause a issue
+void clientServerRegistration(std::vector<uint8_t>&      client_request,
+                                std::vector<uint8_t>&    response_dest,
+                                std::vector<SourceInfo>& known_servers) {
+    
+    SourceInfo new_server = parseNewServerReg(client_request);
+    ssize_t registered_with = forwardRegistration(client_request, known_servers);
+    if (registered_with < 0) {
+        response_dest = createFailMessage("I appear to be a dead server myself?");
+    } else {
+        response_dest = createServerRegResponse(known_servers);
+        known_servers.push_back(new_server);
+        //currently unused
+        //db->backupDatabase("temp.db");
+    }  
+}
 
 }
