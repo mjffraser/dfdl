@@ -1,6 +1,7 @@
-#pragma once 
+#pragma once
 
 #include "sourceInfo.hpp"
+
 #include <cstdint>
 #include <vector>
 
@@ -41,4 +42,4 @@ int attemptFileDownload(const uint64_t file_uuid,
                         std::vector<SourceInfo>& sources,
                         std::vector<SourceInfo>& bad_sources);
 
-}
+} //dfd

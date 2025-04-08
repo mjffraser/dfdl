@@ -148,22 +148,59 @@ int listen(int server_fd, int max_pending) {
 }
 
 
-int accept(int server_fd, SourceInfo& client_info) {
-    struct sockaddr_in clientAddr;
-    socklen_t client_len = sizeof(clientAddr);
-    memset(&clientAddr, 0, client_len); // 0 out struct addr
+int accept(int                                 server_fd,
+           SourceInfo&                         client_info,
+           const std::optional<struct timeval> accept_timeout) {
+    struct sockaddr_in client_address;
+    socklen_t client_len = sizeof(client_address);
+    memset(&client_address, 0, client_len); // 0 out struct addr
 
-    int client_fd = ::accept(server_fd, (struct sockaddr*)&clientAddr, &client_len);
 
-    if (client_fd < 0) {
-        return -1;
+    int  client_fd;
+    bool accepted_something = true;
+    if (!accept_timeout) {
+        client_fd = ::accept(server_fd, (struct sockaddr*)&client_address, &client_len);
+
+        if (client_fd < 0) {
+            return -1;
+        }
+    } else {
+        struct timeval timeout = accept_timeout.value();
+
+        //set non-block
+        const int flags = fcntl(server_fd, F_GETFL);
+        fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
+
+        fd_set fdset;
+        FD_ZERO(&fdset);
+        FD_SET(server_fd, &fdset);
+
+        int res = select(server_fd+1, &fdset, NULL, NULL, &timeout);
+        if (res == 1) {
+            //socket readable
+            client_fd = ::accept(server_fd, (struct sockaddr*)&client_address, &client_len);
+            int so_err;
+            socklen_t len = sizeof(so_err);
+
+            getsockopt(server_fd, SOL_SOCKET, SO_ERROR, &so_err, &len);
+
+            if (so_err != 0) accepted_something = false;
+        } else if (res <= 0) {
+            //timeout or other
+            accepted_something = false;
+        }
+
+        fcntl(server_fd, F_SETFL, flags);
     }
 
     char client_ip[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &clientAddr.sin_addr, client_ip, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &client_address.sin_addr, client_ip, INET_ADDRSTRLEN);
     client_info.ip_addr = client_ip;
-    client_info.port = ntohs(clientAddr.sin_port);
-    
+    client_info.port = ntohs(client_address.sin_port);
+
+    if (!accepted_something)
+        return -1;
+    std::cout << "accepted okay" << std::endl;
     return client_fd;
 }
 
@@ -195,7 +232,7 @@ ssize_t recvMessage(int                   socket_fd,
         std::vector<uint8_t> header;
         ssize_t header_read = recvBytes(socket_fd, header, 8, timeout);
         if (header_read != 8) {
-            std::cout << "Not reading 8 header bytes." << std::endl;
+            std::cout << "Only reading " << header_read << " bytes." << std::endl;
             return -1;
         }
         

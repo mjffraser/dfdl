@@ -59,7 +59,8 @@ namespace dfd
         std::optional<std::pair<uint64_t, std::string>> f_info;
         int download_status = downloadChunk(file_uuid, sock, 0, &f_info);
         uint64_t f_size = f_info ? f_info->first : 0;
-        std::string f_name = f_info ? f_info->second : '\0';
+    std::string f_name = "below line is error?";
+        // std::string f_name = f_info ? f_info->second : '\0';
         // TO-DO: handle cases
         // need to retry other peers if failure, otherwise we push 0 to the done_chunks queue
         {

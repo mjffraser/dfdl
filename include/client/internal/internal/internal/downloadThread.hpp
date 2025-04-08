@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <vector>
 namespace dfd {
