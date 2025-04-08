@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sourceInfo.hpp"
+#include <optional>
 #include <vector>
 
 namespace dfd {
@@ -31,7 +32,7 @@ namespace dfd {
  *    -1
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int connectToSource(const SourceInfo connect_to,
+int connectToSource(const  SourceInfo connect_to,
                     struct timeval   connection_timeout);
 
 /*
@@ -77,6 +78,8 @@ bool sendOkay(int                         sock,
  * -> expected_code:
  *    The 1-byte code that the message should have. Should be provided pulled
  *    from messageFormatting. 
+ * -> timeout:
+ *    A timeout for receiving the message back.
  *
  * Returns:
  * -> On success:
@@ -85,12 +88,42 @@ bool sendOkay(int                         sock,
  *    False
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-bool recvOkay(int                   sock,
-              std::vector<uint8_t>& buffer,
-              const uint8_t         expected_code);
+bool recvOkay(int                           sock,
+              std::vector<uint8_t>&         buffer,
+              const uint8_t                 expected_code,
+              std::optional<struct timeval> timeout=std::nullopt);
 
 
-// could also write another function here to combine the sendMsg and get response into one since it happens so much
-// should prob push these back a layer into .internal/something.hpp if so
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * sendAndRecv
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Combines the above two functions into one call.
+ *
+ * Takes:
+ * -> sock_fd:
+ *    The socket to send/recv through/from.
+ * -> out:
+ *    The message being sent.
+ * -> in:
+ *    A buffer to receive the message into.
+ * -> expected_code:
+ *    The message code to check for.
+ * -> timeout:
+ *    A timeout for the receive.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCCESS
+ * -> On failure:
+ *    EXIT_FAILURE
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int sendAndRecv(int                           sock_fd,
+                const  std::vector<uint8_t>&  out,
+                       std::vector<uint8_t>&  in,
+                const  uint8_t                expected_code,
+                std::optional<struct timeval> timeout=std::nullopt);
 
 } //dfd

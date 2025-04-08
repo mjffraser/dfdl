@@ -145,7 +145,6 @@ int main(int argc, char** argv) {
     }
 
     //else client
-    dfd::P2PClient client(ip_addr, port, download_dir, listen_addr);
-    client.run();
+    dfd::run_client(ip_addr, port, download_dir, listen_addr);
     return 0;
 }

@@ -148,7 +148,9 @@ int listen(int server_fd, int max_pending);
  *    -1
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int accept(int server_fd, SourceInfo& client_info);
+int accept(int                                 server_fd,
+           SourceInfo&                         client_info,
+           const std::optional<struct timeval> accept_timeout=std::nullopt);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

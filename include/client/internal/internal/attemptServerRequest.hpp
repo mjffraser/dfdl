@@ -1,6 +1,8 @@
 #pragma once
 
+#include "networking/messageFormatting.hpp"
 #include "sourceInfo.hpp"
+
 #include <string>
 #include <vector>
 
@@ -35,10 +37,10 @@ namespace dfd {
  *    EXIT_FAILURE
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int attemptIndex(const std::string&        file_path,
-                 std::vector<std::string>& indexed_files,
-                 SourceInfo&               server,
-                 struct timeval            connection_timeout);
+int attemptIndex(const  FileId&     file,
+                 const  SourceInfo& server,
+                 struct timeval     connection_timeout,
+                 struct timeval     response_timeout);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -70,10 +72,10 @@ int attemptIndex(const std::string&        file_path,
  *    EXIT_FAILURE
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int attemptDrop(const std::string&        file_path,
-                std::vector<std::string>& indexed_files,
-                SourceInfo&               server,
-                struct timeval            connection_timeout);
+int attemptDrop(const  IndexUuidPair& file,
+                const  SourceInfo&    server,
+                struct timeval        connection_timeout,
+                struct timeval        response_timeout);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -101,6 +103,8 @@ int attemptDrop(const std::string&        file_path,
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 int attemptSourceRetrieval(const uint64_t           file_uuid,
+                           SourceInfo&              server,
                            std::vector<SourceInfo>& dest);
 
-}
+
+} //dfd
