@@ -6,8 +6,10 @@
 #include "sourceInfo.hpp"
 
 #include <csignal>
+#include <map>
 #include <thread>
 #include <unistd.h>
+#include <variant>
 #include <vector>
 #include <iostream>
 #include <atomic>
@@ -20,6 +22,7 @@ inline static const std::string UUID_FILE_NAME = "uuid";
 std::vector<SourceInfo>  server_list;
 uint64_t                 my_uuid = 0;
 std::string              my_download_dir;
+
 
 int client_startup(const std::string& ip, 
                    const uint16_t     port,
@@ -78,66 +81,177 @@ void printHelp() {
     std::cout << "  exit                - Quit the client\n";
 }
 
-void client_main(const std::string& listen_addr, const uint16_t listener_port) {
+enum message_code {
+    EXIT,
+    LIST,
+    HELP,
+    INDEX,
+    DROP,
+    DOWNLOAD,
+    CRASH,
+};
+
+//maps user supplied arg to container, converting to uuid if needed
+template <typename T>
+int getArg(const std::string& command, T& arg_container) {
+    std::vector<std::string> args;
+    std::string curr_str;
+    for (const char& c : command) {
+        if (c == ' ' && !curr_str.empty()) {
+            args.push_back(curr_str);
+            curr_str.clear();
+        } else {
+            curr_str.push_back(c);
+        }
+    } if (!curr_str.empty()) args.push_back(curr_str);
+
+    if (args.size() != 2) 
+        return EXIT_FAILURE;
+    const std::string& ret_arg = args[1];
+    if constexpr (std::is_same_v<T, std::string>) {
+        arg_container = ret_arg;
+        return EXIT_SUCCESS;
+    } else if constexpr (std::is_same_v<T, uint64_t>) {
+        try {
+            arg_container = std::stoull(ret_arg);
+            return EXIT_SUCCESS;
+        } catch (...) {
+            std::cerr << "[err] Invalid UUID: Please provide a numeric UUID!" << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    //otherwise
+    return EXIT_FAILURE;
+}
+
+std::optional<message_code> parseCommand(const std::string&                   command,
+                                         std::variant<uint64_t, std::string>& command_arg) {
+    //no arg commands
+    if (command.substr(0,5) == "exit "  || command == "exit")  return EXIT;
+    if (command.substr(0,5) == "list "  || command == "list")  return LIST;
+    if (command.substr(0,5) == "help "  || command == "help")  return HELP;
+    if (command.substr(0,6) == "crash " || command == "crash") return CRASH;
+
+    //index command, takes std::string as arg
+    if (command.substr(0,5) == "index") {
+        std::string f_path;
+        if (EXIT_FAILURE == getArg(command, f_path)) {
+            std::cerr << "[err] Invalid command: " << command << std::endl;
+            std::cerr << "[err] Usage: index <path to file>"  << std::endl;
+            return std::nullopt;
+        }
+
+        command_arg = f_path;
+        return INDEX;
+    }
+
+    //drop command, takes std::string as arg
+    if (command.substr(0,4) == "drop") {
+        std::string f_path;
+        if (EXIT_FAILURE == getArg(command, f_path)) {
+            std::cerr << "[err] Invalid command: " << command << std::endl;
+            std::cerr << "[err] Usage: drop <path to file>"   << std::endl;
+            return std::nullopt;
+        }
+
+        command_arg = f_path;
+        return DROP;
+    }
+
+    if (command.substr(0,8) == "download") {
+        uint64_t uuid;
+        if (EXIT_FAILURE == getArg(command, uuid)) {
+            std::cerr << "[err] Invalid command: " << command << std::endl;
+            std::cerr << "[err] Usage: download <uuid>"       << std::endl;
+            return std::nullopt;
+        }
+
+        command_arg = uuid;
+        return DOWNLOAD;
+    }
+
+    return std::nullopt;
+}
+
+void client_main(const std::string&                     listen_addr,
+                 const uint16_t                         listener_port,
+                       std::map<uint64_t, std::string>& indexed_files,
+                       std::mutex&                      indexed_files_mtx) {
     //my identity for the server to use
     SourceInfo my_listener;
     my_listener.ip_addr = listen_addr;
     my_listener.port    = listener_port;
     my_listener.peer_id = my_uuid;
 
-    std::vector<std::string> indexed_files;
-
-    std::string command;
+    //handle CONTROL+C
     signal(SIGINT, signalHandler);
-    std::cout << "Welcome to P2P Client!\n";
-    std::cout << "Your current download directory is: " << my_download_dir << std::endl;
-    std::cout << "Type 'help' for commands.\n";
 
+    //welcome messages
+    std::cout << "Welcome to P2P Client!"                                  << std::endl;
+    std::cout << "Your current download directory is: " << my_download_dir << std::endl;
+    std::cout << "Type 'help' for commands."                               << std::endl;
+
+
+    //main loop
     while (!shutdown) {
+        std::string                         command;
+        std::variant<uint64_t, std::string> command_arg;
+
+        //get user input
         std::cout << "> ";
         if (!std::getline(std::cin, command)) break;
-        
-        if (command == "exit") {
-            shutdown = true;
-        } 
 
-        else if (command == "list") {
-            // handleList();
-        } 
+        auto code = parseCommand(command, command_arg);
+        if (!code) {
+            std::cerr << "Unknown command. Type 'help' for usage." << std::endl;
+            continue;
+        }
 
-        else if (command.rfind("index ", 0) == 0) {
-            // e.g. "index myfile.txt"
-            std::string file_name = command.substr(6);
-            doIndex(my_listener, file_name, indexed_files, server_list);
-        } 
-
-        else if (command.rfind("download ", 0) == 0) {
-            // e.g. "download <file uuid>"
-            std::string uuid_str = command.substr(9);
-            try {
-                uint64_t file_uuid = std::stoull(uuid_str);
-                // handleDownload(file_uuid);
-            } catch (const std::exception& e) {
-                std::cerr << "Invalid file UUID format. Please provide a valid numeric ID.\n";
+        //execute command
+        switch (code.value()) {
+            case EXIT: {
+                shutdown = true;
+                break;
             }
-        } 
 
-        else if (command.rfind("drop ", 0) == 0) {
-            // e.g. "remove <file uuid>"
-            std::string file_name = command.substr(5);
-            doDrop(my_listener, file_name, indexed_files, server_list);
-        } 
+            case LIST: {
+                // handleList
+                break;
+            }
 
-        else if (command == "help") {
-            printHelp();
-        } 
+            case HELP: {
+                printHelp();
+                break;
+            }
 
-        else if (command == "crash") {
-            exit(-1);
-        } 
+            case INDEX: {
+                doIndex(my_listener,
+                        std::get<std::string>(command_arg), //file name
+                        indexed_files,
+                        indexed_files_mtx,
+                        server_list);
+                break;
+            }
 
-        else {
-            std::cout << "Unknown command. Type 'help' for usage.\n";
+            case DROP: {
+                doDrop(my_listener,
+                       std::get<std::string>(command_arg), //file name
+                       indexed_files,
+                       indexed_files_mtx,
+                       server_list);
+                break;
+            }
+
+            case DOWNLOAD: {
+                doDownload(std::get<uint64_t>(command_arg), //file uuid
+                           server_list);
+                break;
+            }
+
+            case CRASH: {
+                exit(-1);
+            }
         }
     }
 
@@ -154,13 +268,19 @@ void run_client(const std::string& ip,
         exit(EXIT_FAILURE);
     std::cout << "Setup with " << server_list.size() << " servers." << std::endl;
 
+    //container and mutex for all indexed files
+    std::map<uint64_t, std::string> indexed_files;
+    std::mutex                      indexed_files_mtx;
+
     //listener setup
     std::atomic<uint16_t> listener_port  = 0;
     std::atomic<bool>     listener_setup = false;
     std::thread           my_listener    = std::thread(clientListener,
                                                        std::ref(shutdown),
                                                        std::ref(listener_port),
-                                                       std::ref(listener_setup));
+                                                       std::ref(listener_setup),
+                                                       std::cref(indexed_files),
+                                                       std::ref(indexed_files_mtx));
 
     //wait while listener sets up
     sleep(1);
@@ -170,7 +290,7 @@ void run_client(const std::string& ip,
         exit(EXIT_FAILURE);
     }
 
-    client_main(listen_addr, listener_port);
+    client_main(listen_addr, listener_port, indexed_files, indexed_files_mtx);
 
     //shutdown
     std::cout << "Shutting down..." << std::endl;

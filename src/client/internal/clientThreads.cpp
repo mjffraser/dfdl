@@ -3,6 +3,7 @@
 #include <thread>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <unistd.h>
 
 #include "client/internal/clientThreads.hpp"
 #include "client/internal/internal/seedThread.hpp"
@@ -12,9 +13,11 @@
 namespace dfd {
     
 
-void clientListener(std::atomic<bool>&     shutdown,
-                    std::atomic<uint16_t>& listener_port,
-                    std::atomic<bool>&     listener_setup) {
+void clientListener(      std::atomic<bool>&               shutdown,
+                          std::atomic<uint16_t>&           listener_port,
+                          std::atomic<bool>&               listener_setup,
+                    const std::map<uint64_t, std::string>& indexed_files,
+                          std::mutex&                      indexed_files_mtx) {
     // open a listener
     auto sock_port = openSocket(true, 0);
     int my_listen_sock;
@@ -36,10 +39,10 @@ void clientListener(std::atomic<bool>&     shutdown,
     }
 
     listener_setup = true;
-    std::vector<std::thread> seed_threads;
     struct timeval accept_timeout;
     accept_timeout.tv_sec  = 1;
     accept_timeout.tv_usec = 0;
+
     while (!shutdown.load()) { //Keep listening until shutdown is requested
         SourceInfo client;
         int peer_sock = tcp::accept(my_listen_sock, client, accept_timeout);
@@ -52,15 +55,14 @@ void clientListener(std::atomic<bool>&     shutdown,
 
         // Launch a thread to handle the incoming peer connection
         // TODO FIX MEMORY LEAK
-        seed_threads.emplace_back(seedToPeer, std::ref(shutdown), peer_sock);
+        std::thread(seedToPeer,
+                    std::ref(shutdown),
+                    peer_sock,
+                    std::cref(indexed_files),
+                    std::ref(indexed_files_mtx)).detach();
     }
 
-    // Wait for all threads to finish
-    for (auto &st : seed_threads) {
-        if (st.joinable())
-            st.join();
-    }
-
+    sleep(2); //let seed threads close
     closeSocket(my_listen_sock); // Close the listening socket when done
 }
 

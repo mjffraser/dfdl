@@ -1,6 +1,10 @@
 #pragma once
 
 #include <atomic>
+#include <map>
+#include <mutex>
+#include <string>
+
 namespace dfd {
 
 /*
@@ -20,6 +24,9 @@ namespace dfd {
  *    The socket connection to the peer requesting a file download.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-void seedToPeer(std::atomic<bool>& shutdown, int peer_sock);
+void seedToPeer(std::atomic<bool>&                     shutdown,
+                int                                    peer_sock,
+                const std::map<uint64_t, std::string>& indexed_files,
+                std::mutex&                            indexed_files_mtx);
 
 } //dfd

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <atomic>
+#include <map>
+#include <mutex>
+#include <string>
 
 namespace dfd {
 
@@ -25,8 +28,10 @@ namespace dfd {
  *    threads it's currently managing first.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-void clientListener(std::atomic<bool>&     shutdown,
-                    std::atomic<uint16_t>& listener_port,
-                    std::atomic<bool>&     listener_setup);
+void clientListener(      std::atomic<bool>&               shutdown,
+                          std::atomic<uint16_t>&           listener_port,
+                          std::atomic<bool>&               listener_setup,
+                    const std::map<uint64_t, std::string>& indexed_files,
+                          std::mutex&                      indexed_files_mtx);
 
 }

@@ -1,31 +1,58 @@
 #include "client/internal/internal/internal/clientNetworking.hpp"
 #include "networking/socket.hpp"
 #include "networking/messageFormatting.hpp"
-#include "networking/fileParsing.hpp"
-#include "networking/internal/fileParsing/fileUtil.hpp"
-#include "networking/internal/messageFormatting/byteOrdering.hpp"
 #include "sourceInfo.hpp"
 
-#include <algorithm>
-#include <atomic>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
-#include <iostream>
-#include <mutex>
 #include <optional>
-#include <string>
-#include <thread>
-#include <filesystem>
 
 namespace dfd {
 
-bool isFail(const std::vector<uint8_t>& msg) {
-    return !msg.empty() && msg[0] == FAIL;
-}
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * attemptServerCommunication
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Attempts to connect to a server within a connection_timeout, send a
+ *    request to that server, and receive a response from that server within
+ *    response_timeout.
+ *
+ * Takes:
+ * -> server:
+ *    The server to connect to.
+ * -> request:
+ *    A server request formatted by messageFormatting
+ * -> response_buff:
+ *    A vector to read the response into.
+ * -> connection_timeout:
+ *    A timeout for how long to attempt connection for.
+ * -> response_timeout:
+ *    A timeout for how long to wait for the server to reply.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCCESS
+ * -> On failure:
+ *    EXIT_FAILURE
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int attemptServerCommunication(const  SourceInfo&           server,
+                               const  std::vector<uint8_t>& request,
+                                      std::vector<uint8_t>& response_buff,
+                               const  uint8_t               msg_code,
+                               struct timeval               connection_timeout,
+                               struct timeval               response_timeout) {
+    int sock = connectToSource(server, connection_timeout);
+    if (sock < 0) return EXIT_FAILURE;
 
-bool isOk (const std::vector<uint8_t>& msg, uint8_t expected) {
-    return !msg.empty() && msg[0] == expected;
+    int res = sendAndRecv(sock,
+                          request,
+                          response_buff,
+                          msg_code,
+                          response_timeout);
+    closeSocket(sock);
+    return res; //either EXIT_SUCCESS / EXIT_FAILURE
 }
 
 int attemptIndex(const  FileId&     file,
@@ -33,19 +60,15 @@ int attemptIndex(const  FileId&     file,
                  struct timeval     connection_timeout,
                  struct timeval     response_timeout) {
     std::vector<uint8_t> index_request = createIndexRequest(file);
+    std::vector<uint8_t> server_response;
     if (index_request.empty()) return EXIT_FAILURE;
 
-    int sock = connectToSource(server, connection_timeout);
-    if (sock < 0) return EXIT_FAILURE;
-
-    std::vector<uint8_t> server_response;
-    int res = sendAndRecv(sock,
-                          index_request,
-                          server_response,
-                          INDEX_OK,
-                          response_timeout);
-    closeSocket(sock);
-    return res; //either EXIT_SUCCESS / EXIT_FAILURE
+    return attemptServerCommunication(server,
+                                      index_request,
+                                      server_response,
+                                      INDEX_OK,
+                                      connection_timeout,
+                                      response_timeout);
 }
 
 int attemptDrop(const  IndexUuidPair& file,
@@ -53,60 +76,33 @@ int attemptDrop(const  IndexUuidPair& file,
                 struct timeval        connection_timeout,
                 struct timeval        response_timeout) {
     std::vector<uint8_t> drop_request = createDropRequest(file);
+    std::vector<uint8_t> server_response;
     if (drop_request.empty()) return EXIT_FAILURE;
 
-    int sock = connectToSource(server, connection_timeout);
-    if (sock < 0) return EXIT_FAILURE;
-
-    std::vector<uint8_t> server_response;
-    int res = sendAndRecv(sock,
-                          drop_request,
-                          server_response,
-                          DROP_OK,
-                          response_timeout);
-    std::cout << res << " " << EXIT_SUCCESS << std::endl;
-    closeSocket(sock);
-    return res; //either EXIT_SUCCESS / EXIT_FAILURE
+    return attemptServerCommunication(server,
+                                      drop_request,
+                                      server_response,
+                                      DROP_OK,
+                                      connection_timeout,
+                                      response_timeout);
 }
 
+int attemptSourceRetrieval(const uint64_t           file_uuid,
+                           std::vector<SourceInfo>& dest,
+                           const  SourceInfo&       server,
+                           struct timeval           connection_timeout,
+                           struct timeval           response_timeout) {
+    dest.clear(); 
+    std::vector<uint8_t> source_request = createSourceRequest(file_uuid);
+    std::vector<uint8_t> server_response;
+    if (source_request.empty()) return EXIT_FAILURE;
 
-// int attemptSourceRetrieval(const uint64_t file_uuid,
-//                            std::vector<SourceInfo> &dest)
-// {
-//     // dest.clear();
-//     //
-//     // std::filesystem::path hosts_file = configDir() / HOSTS_FILE_NAME;
-//     // std::vector<SourceInfo> hosts;
-//     // if (getHostListFromDisk(hosts, hosts_file.string()) != EXIT_SUCCESS
-//     //     || hosts.empty())
-//     //     return EXIT_FAILURE;
-//     //
-//     // std::vector<uint8_t> req = createSourceRequest(file_uuid);
-//     // if (req.empty()) return EXIT_FAILURE;
-//     //
-//     // for (auto& h : hosts)
-//     // {
-//     //     auto sock = openSocket(false, 0, false);
-//     //     if (!sock) continue;
-//     //     struct timeval timeout{3,0};
-//     //     if (tcp::connect(sock->first, h, timeout) != EXIT_SUCCESS)
-//     //     { closeSocket(sock->first); continue; }
-//     //
-//     //     std::vector<uint8_t> resp;
-//     //     if (sendAndRecv(sock->first, req, resp, timeout) != EXIT_SUCCESS)
-//     //     { closeSocket(sock->first); continue; }
-//     //
-//     //     closeSocket(sock->first);
-//     //
-//     //     if (isFail(resp))
-//     //         continue;
-//     //     if (isOk(resp, SOURCE_LIST))
-//     //     {
-//     //         dest = parseSourceList(resp);
-//     //         return EXIT_SUCCESS;
-//     //     }
-//     // }
-//     return EXIT_FAILURE;
-// }
+    return attemptServerCommunication(server,
+                                      source_request,
+                                      server_response,
+                                      SOURCE_LIST,
+                                      connection_timeout,
+                                      response_timeout);
+}
 
 } // namespace dfd
