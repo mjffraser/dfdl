@@ -51,10 +51,11 @@ set(CLIENT_SRC
     src/client/internal/internal/attemptServerRequest.cpp
     src/client/internal/internal/attemptPeerRequest.cpp
     src/client/internal/internal/seedThread.cpp
+    src/client/internal/internal/downloadThread.cpp
 
     #lowest level util
     src/client/internal/internal/internal/clientNetworking.cpp
-    # src/client/internal/internal/internal/downloadThread.cpp
+    src/client/internal/internal/internal/downloadHandshake.cpp
     
 )
 

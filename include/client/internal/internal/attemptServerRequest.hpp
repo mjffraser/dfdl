@@ -103,8 +103,9 @@ int attemptDrop(const  IndexUuidPair& file,
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 int attemptSourceRetrieval(const uint64_t           file_uuid,
-                           SourceInfo&              server,
-                           std::vector<SourceInfo>& dest);
-
+                           std::vector<SourceInfo>& dest,
+                           const  SourceInfo&       server,
+                           struct timeval           connection_timeout,
+                           struct timeval           response_timeout);
 
 } //dfd
