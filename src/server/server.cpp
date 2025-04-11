@@ -123,7 +123,7 @@ void run_server(const std::string& ip,
     ///////////////////////////////////////////////////////////////////////////
     //STEP 3: (OPTIONALLY) CONNECT TO ANOTHER SERVER
     if (!target_server.ip_addr.empty())
-        joinNetwork(target_server, my_db, known_servers);
+        joinNetwork(target_server, my_db, known_servers, our_address);
 
     std::cout << "SERVER SETUP COMPLETE." << std::endl;
     ///////////////////////////////////////////////////////////////////////////

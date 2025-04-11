@@ -211,10 +211,66 @@ void massWriteSend(SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_
 ////////////////////////////////////////////////////////////
 
 
-void joinNetwork(const SourceInfo&        known_server,
-    Database*                open_db,
-    std::vector<SourceInfo>& known_servers) {
+void joinNetwork(const SourceInfo&           known_server,
+                    Database*                open_db,
+                    std::vector<SourceInfo>& known_servers,
+                    SourceInfo               our_server) {
 
+
+    // Extract IP and port
+    std::string server_ip = known_server.ip_addr;
+    uint8_t server_port   = known_server.port;
+
+    //open client TCP socket (unsure if server_port is right or if I should default this to somethin)
+    auto socket = openSocket(false, server_port);
+    if (!socket) {
+        std::cerr << "Failed to open client socket for setup.\n";
+        return;
+    }
+
+    //our client socket we are using
+    int client_sock = socket.value().first;
+
+    //attempt to connect and catch any errors and output error
+    if (tcp::connect(client_sock, known_server) == EXIT_FAILURE) {
+        std::cerr << "couldent connect to sister server @ IP:" << server_ip << "PORT:" << server_port << "\n";
+        closeSocket(client_sock);
+        return;
+    }
+    //connection successful
+    std::cout << "connected to sister server @ IP:" << server_ip << "PORT:" << server_port << "\n";
+
+    //send initial_message setup request message
+    std::vector<uint8_t> setup_message = createNewServerReg(our_server);
+    if (tcp::sendMessage(client_sock, setup_message) == EXIT_FAILURE) {
+        std::cerr << "Failed to send setup message.\n";
+        closeSocket(client_sock);
+        return;
+    }
+
+    //buffer for response
+    std::vector<uint8_t> buffer;
+    timeval timeout = {5, 0};
+    ssize_t read_bytes = tcp::recvMessage(client_sock, buffer, timeout);
+    //errorcheck
+    if (read_bytes <= 0) {
+        std::cerr << "no response from known server.\n";
+        closeSocket(client_sock);
+        return;
+    }
+
+    //known_servers = all known severs of connected server+the connected server
+    known_servers = parseServerRegResponse(buffer);
+    known_servers.push_back(known_server);
+
+    std::cout << "Registered with server network." << std::endl;
+    std::cout << "[DEBUG] SERVERS:" << std::endl;
+    for (auto& s : known_servers) {
+        std::cout << s.ip_addr << " " << s.port << std::endl;
+    }
+
+    //close socket
+    closeSocket(client_sock);
 }
 
 

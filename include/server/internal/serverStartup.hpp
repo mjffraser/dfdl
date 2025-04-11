@@ -92,6 +92,7 @@ void massWriteSend(SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_
  */
 void joinNetwork(const SourceInfo&        known_server,
     Database*                open_db,
-    std::vector<SourceInfo>& known_servers);
+    std::vector<SourceInfo>& known_servers,
+    SourceInfo               our_server);
 
 }//namespace
