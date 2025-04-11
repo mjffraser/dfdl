@@ -99,7 +99,7 @@ uint64_t getMyUUID(const std::string &uuid_path) {
 
     // Generate new UUID
     if (std::ifstream urandom("/dev/urandom", std::ios::binary); urandom) {
-        urandom.read(reinterpret_cast<char *>(&uuid), sizeof(uuid));
+        urandom.read(reinterpret_cast<char *>(&uuid), 4); //TODO: THIS IS ONLY 4-BYTES, NOT 8
     }
 
     if (uuid == 0) { // fallback if /dev/urandom fails
@@ -111,7 +111,7 @@ uint64_t getMyUUID(const std::string &uuid_path) {
     // Write new UUID to file
     if (std::ofstream uuid_file(uuid_path, std::ios::binary | std::ios::trunc); uuid_file) {
         uuid_file.write(reinterpret_cast<const char *>(&uuid), sizeof(uuid));
-        std::cout << "Generated new UUID: " << uuid << "and saved to " << uuid_path << std::endl;
+        std::cout << "Generated new UUID: " << uuid << " and saved to " << uuid_path << std::endl;
     } else {
         std::cout << "Error: Could not write new UUID to config file.\n";
     }

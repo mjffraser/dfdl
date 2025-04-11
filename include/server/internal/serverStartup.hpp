@@ -90,8 +90,8 @@ void massWriteSend(SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_
  *    this registration process.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-void joinNetwork(const SourceInfo&        known_server,
-    Database*                open_db,
-    std::vector<SourceInfo>& known_servers);
+// void joinNetwork(const SourceInfo&        known_server,
+//     Database*                open_db,
+//     std::vector<SourceInfo>& known_servers);
 
 }//namespace

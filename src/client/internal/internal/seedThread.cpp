@@ -3,7 +3,10 @@
 #include "networking/fileParsing.hpp"
 #include "networking/messageFormatting.hpp"
 #include "networking/socket.hpp"
+#include <iostream>
 #include <map>
+#include <thread>
+#include <unistd.h>
 
 namespace dfd {
 
@@ -70,12 +73,15 @@ int initHandshake(int                                     peer_sock,
                   std::mutex&                             indexed_files_mtx,
                   struct timeval                          timeout,
                   std::filesystem::path&                  f_path) {
+    std::cout << "starting" << std::endl;
     // recieve client download init request
     std::vector<uint8_t> client_init_msg;
     if (!recvOkay(peer_sock, client_init_msg, DOWNLOAD_INIT, timeout)) {
         closeSocket(peer_sock);
         return EXIT_FAILURE;
     }
+
+    std::cout << "okay" << std::endl;
 
     //check for valid request
     auto [uuid, c_size] = parseDownloadInit(client_init_msg);
@@ -106,8 +112,10 @@ int initHandshake(int                                     peer_sock,
     std::vector<uint8_t> confirm_msg = createDownloadConfirm(f_size_opt.value(),
                                                              f_path.filename());
 
+    std::cout << "GREAT" << std::endl;
     if (sendOkay(peer_sock, confirm_msg))
         return EXIT_SUCCESS;
+    std::cout << "????" << std::endl;
     closeSocket(peer_sock);
     return EXIT_FAILURE;
 }
@@ -131,7 +139,7 @@ void seedToPeer(std::atomic<bool>&                     shutdown,
     }
 
     //wait for peer chunk requests
-    std::vector<uint8_t> client_ask;
+        std::vector<uint8_t> client_ask;
     while (recvOkay(peer_sock, client_ask, REQUEST_CHUNK, seed_timeout)) {
         size_t chunk_id = parseChunkRequest(client_ask); 
 
@@ -149,6 +157,8 @@ void seedToPeer(std::atomic<bool>&                     shutdown,
         chunk.resize(res.value());
         DataChunk dc = {chunk_id, chunk};
         std::vector<uint8_t> chunk_msg = createDataChunk(dc);
+        double X=((double)rand()/(double)RAND_MAX);
+        std::this_thread::sleep_for(std::chrono::duration<double>(X)); //ARTIFICIAL DELAYS
         if (!sendOkay(peer_sock, chunk_msg)) break;
     }
 

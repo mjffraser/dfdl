@@ -160,6 +160,7 @@ void downloadThread(const uint64_t                 f_uuid,
     while ((peer_index = selectPeerThreaded(source_stats, stat_mtx)) >= 0) {
         //select peer
         const SourceInfo& selected_peer = sources[peer_index];
+        std::cout << "SELECTING " << selected_peer.ip_addr << ":" << selected_peer.port << std::endl;
 
         //attempt connection
         int sock = connectToSource(selected_peer, connection_timeout); 
@@ -183,6 +184,7 @@ void downloadThread(const uint64_t                 f_uuid,
         //chunk request loop, while chunks are in the queue we:
         size_t chunk_index;
         while ((chunk_index = getNextChunk(remaining_chunks, remaining_chunks_mtx)) != 0) {
+            std::cout << "next:" << chunk_index << " from " << selected_peer.port << std::endl; 
             if (EXIT_SUCCESS != downloadChunk(sock,
                                               chunk_index,
                                               f_name,
@@ -199,6 +201,7 @@ void downloadThread(const uint64_t                 f_uuid,
         }
 
         //done with this peer
+        sendOkay(sock, {FINISH_DOWNLOAD});
         closeSocket(sock);
 
         if (chunk_index == 0) {

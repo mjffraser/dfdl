@@ -23,7 +23,6 @@ void keepClientAlive(int client_fd,
         if (cv.wait_for(lock, std::chrono::milliseconds(1000), [&run] {return !run;}))
             break;
     }
-    std::cout << "RETURNING" << std::endl;
     return;
 }
 
@@ -70,6 +69,7 @@ std::pair<int, uint16_t> selectWorker(std::vector<uint8_t>&                     
         worker_port = write_worker; 
     }
     
+    std::cout << "WORKER: " << worker_id << std::endl;
     return std::make_pair(worker_id, worker_port);
 }
 
@@ -194,7 +194,10 @@ void clientConnection(int                                              client_so
         //get response
         std::vector<uint8_t> worker_response;
         if (EXIT_SUCCESS == recvWorkerMessage(worker_sock, worker_addr, worker_response)) {
-            std::cout << "REPLY CODE: " << (int)*worker_response.begin() << std::endl;
+            std::cout << "SENT CODE:"   << (int)*client_request.begin() << std::endl;
+            if ((int)*worker_response.begin() == 0)
+                std::cout << "[ERR] " << parseFailMessage(worker_response) << std::endl;
+            
             //WE GOT A REPLY
             worker_strikes[worker_id] = 0;
             

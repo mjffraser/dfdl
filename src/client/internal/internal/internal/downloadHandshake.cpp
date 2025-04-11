@@ -2,6 +2,8 @@
 #include "client/internal/internal/internal/clientNetworking.hpp"
 #include "networking/messageFormatting.hpp"
 #include "networking/socket.hpp"
+#include <iostream>
+#include <ostream>
 #include <vector>
 
 namespace dfd {
@@ -11,11 +13,13 @@ int attemptDownloadHandshake(int            connected_sock,
                              std::string&   f_name,
                              uint64_t&      f_size,
                              struct timeval response_timeout) {
+    std::cout << "in handshake for" << f_uuid << std::endl;
     std::vector<uint8_t> download_init = createDownloadInit(f_uuid, std::nullopt);
     if (download_init.empty())
         return EXIT_FAILURE;
 
     std::vector<uint8_t> peer_response;
+    std::cout << "sendmsg" << std::endl;
     int res = sendAndRecv(connected_sock,
                           download_init,
                           peer_response,
@@ -25,9 +29,11 @@ int attemptDownloadHandshake(int            connected_sock,
         closeSocket(connected_sock);
         return EXIT_FAILURE;
     }
+    
+    std::cout << "recv " << peer_response.size() << std::endl;
 
     auto [size, name] = parseDownloadConfirm(peer_response);
-    if (f_size == 0) {
+    if (size == 0) {
         closeSocket(connected_sock);
         return EXIT_FAILURE;
     }

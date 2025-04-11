@@ -5,7 +5,9 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <optional>
+#include <ostream>
 
 namespace dfd {
 
@@ -97,12 +99,19 @@ int attemptSourceRetrieval(const uint64_t           file_uuid,
     std::vector<uint8_t> server_response;
     if (source_request.empty()) return EXIT_FAILURE;
 
-    return attemptServerCommunication(server,
-                                      source_request,
-                                      server_response,
-                                      SOURCE_LIST,
-                                      connection_timeout,
-                                      response_timeout);
+    if (EXIT_FAILURE == attemptServerCommunication(server,
+                                                   source_request,
+                                                   server_response,
+                                                   SOURCE_LIST,
+                                                   connection_timeout,
+                                                   response_timeout)) {
+        return EXIT_FAILURE;
+    }
+
+    std::cout << "SKLDJFJKLJFLKSDJFDSF" << std::endl;
+    auto servers = parseSourceList(server_response);
+    for (auto& s : servers) dest.push_back(s);
+    return EXIT_SUCCESS;
 }
 
 } // namespace dfd

@@ -53,6 +53,7 @@ void clientListener(      std::atomic<bool>&               shutdown,
             continue; // Try to accept the next connection
         }
 
+        std::cout << "ACCEPTING" << std::endl;
         // Launch a thread to handle the incoming peer connection
         // TODO FIX MEMORY LEAK
         std::thread(seedToPeer,

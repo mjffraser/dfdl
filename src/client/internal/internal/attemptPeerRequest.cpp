@@ -6,6 +6,7 @@
 #include "networking/socket.hpp"
 
 #include <algorithm>
+#include <iostream>
 
 namespace dfd {
 

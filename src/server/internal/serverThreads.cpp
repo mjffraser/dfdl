@@ -300,15 +300,18 @@ void workerThread(std::atomic<bool>&                             server_running,
                 case DROP_REQUEST:
                 case DROP_FORWARD: {
                     clientDropRequest(client_request, response, db);
+                    break;
                 }
 
                 case REREGISTER_REQUEST:
                 case REREGISTER_FORWARD: {
                     clientReregisterRequest(client_request, response, db);
+                    break;
                 }
 
                 case SOURCE_REQUEST: {
                     clientSourceRequest(client_request, response, db);
+                    break;
                 }
 
                 //SYNCING STUFF
