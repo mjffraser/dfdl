@@ -189,7 +189,7 @@ void downloadThread(const uint64_t                 f_uuid,
                                               chunk_index,
                                               f_name,
                                               response_timeout)) {
-                continue;
+                break;
             }
 
             {
@@ -205,11 +205,16 @@ void downloadThread(const uint64_t                 f_uuid,
         closeSocket(sock);
 
         if (chunk_index == 0) {
-            return; //nothing left to do
+            //nothing left to do
+            std::lock_guard<std::mutex> lock(stat_mtx);
+            source_stats[peer_index] = true; //this peer is fine
+            return;
         } else {
             //if this peer isn't responding
             if (chunks_obtained < 1)
                 addBadPeer(selected_peer, bad_peers, bad_peers_mtx);
+            std::lock_guard<std::mutex> lock(remaining_chunks_mtx);
+            remaining_chunks.push(chunk_index);
         }
     }
 }

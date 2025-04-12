@@ -88,7 +88,8 @@ std::filesystem::path initDownloadDir();
  *    EXIT_FAILURE
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int setDownloadDir(const std::filesystem::path& f_path); 
+int  setDownloadDir(const std::filesystem::path& f_path); 
+std::filesystem::path getDownloadDir();
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

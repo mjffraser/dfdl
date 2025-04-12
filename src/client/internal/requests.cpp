@@ -238,7 +238,8 @@ int doDownload(const uint64_t                 f_uuid,
     ///STAGE 2: DOWNLOAD REMAINING CHUNKS OF FILE
 
     if (file_out == nullptr) {
-        std::cerr << "[err] Exhausted peer list before a peer responded. Please try again later." << std::endl;
+        if (f_name.empty()) //if not empty, we already have the file in our download dir, and errored due to that
+            std::cerr << "[err] Exhausted peer list before a peer responded. Please try again later." << std::endl;
         return EXIT_FAILURE;
     }  
 
@@ -291,16 +292,26 @@ int doDownload(const uint64_t                 f_uuid,
                                      std::ref(response_timeout));
         }
 
+        bool   timed_out      = false;
+        size_t chunks_written = 0;
+
         //construct chunks
         while (true) {
             std::unique_lock<std::mutex> dc_lock(done_chunks_mtx);
-            chunk_ready.wait(dc_lock, [&] {
+            bool notified = chunk_ready.wait_for(dc_lock, std::chrono::seconds(10), [&] {
                 return !done_chunks.empty();
             });
+
+            if (!notified) {
+                //all threads gave up
+                timed_out = true;
+                break;
+            }
 
             while (!done_chunks.empty()) {
                 size_t c = done_chunks.front(); done_chunks.pop();
                 assembleChunk(file_out.get(), f_name, c);
+                chunks_written++;
             }
 
             {
@@ -309,14 +320,26 @@ int doDownload(const uint64_t                 f_uuid,
             }
         }
 
+        //join all threads and clean up
         for (auto& w : workers) w.join();
+        if (timed_out) {
+            std::cerr << "[err] All peers have dropped out mid-download. Cannot continue, sorry." << std::endl;
+            return EXIT_FAILURE;
+        }
         
+        //any chunks that haven't been written yet
         while (!done_chunks.empty()) {
             size_t c = done_chunks.front(); done_chunks.pop();
             assembleChunk(file_out.get(), f_name, c);
+            chunks_written++;
         }
 
-        //REDOWNLOADING TODO
+        if (chunks_written != f_chunks-1) { //0th is already written
+            std::cerr << "[err] Some chunks were corrupted and no peers remain to re-request from. Sorry." << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        //file ptr is still cleaned up when deallocated, even if saveFile not called.
     }
 
     saveFile(std::move(file_out));

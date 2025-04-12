@@ -40,6 +40,12 @@ int attemptInitialChunkDownload(const  uint64_t                        f_uuid,
         return EXIT_FAILURE; //socket already closed
     }
 
+    if (std::filesystem::exists( getDownloadDir() / f_name )) {
+        std::cerr << "[err] A file with the same name already exists. Have you already downloaded this file?" << std::endl;
+        closeSocket(sock);
+        return EXIT_FAILURE;
+   }
+
     std::vector<uint8_t> chunk_request = createChunkRequest(0);
     std::vector<uint8_t> data_chunk_msg;
     int res = sendAndRecv(sock,
