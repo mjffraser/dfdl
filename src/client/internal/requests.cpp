@@ -78,6 +78,12 @@ std::optional<FileId> parseFile(const SourceInfo&  my_listener,
  *    An example call of this function is:
  *    doAttempts(server_list, doSourceRetrieval, file_uuid, dest);
  *
+ *    This function exponentially increases the connection timeout, doubling it
+ *    with each failed attempt. In total, three tries occur, and if all those
+ *    fail the server list is refreshed. After that, three more tries occur on
+ *    each server. Only if all 6n attempts fail does this function return a
+ *    fail.
+ *
  * Takes:
  * -> server_list:
  *    The most up-to-date list of servers on the network.
@@ -99,18 +105,25 @@ bool doAttempts(std::vector<SourceInfo>& server_list,
                 FuncArgs&&...            fn_args) {
     std::vector<SourceInfo> bad_servers;
     bool success = false;
+
+    //try once with current server list, then update it and try one more time
     for (int i = 0; i < 2 && !success; ++i) {
         if (i == 1) {}//TODO UPDATE SERVER LIST WITH SYNC
-        for (const SourceInfo& server : server_list) {
-            if (EXIT_SUCCESS == fn(std::forward<FuncArgs>(fn_args)...,
-                                   server,
-                                   connection_timeout,
-                                   response_timeout)) {
-                success = true;
-                break;
-            } else {
-                if (i == 1)
-                    bad_servers.push_back(server);
+        struct timeval conn_timeout = connection_timeout;
+        //try three times, with increasing timeouts on each attempt
+        for (int j = 0; j < 3 && !success; ++j) {
+            conn_timeout.tv_sec = connection_timeout.tv_sec << j;
+            for (const SourceInfo& server : server_list) {
+                if (EXIT_SUCCESS == fn(std::forward<FuncArgs>(fn_args)...,
+                                       server,
+                                       conn_timeout,
+                                       response_timeout)) {
+                    success = true;
+                    break;
+                } else {
+                    if (i == 1 && j == 2) //final attempt and still no response
+                        bad_servers.push_back(server);
+                }
             }
         }
     }
