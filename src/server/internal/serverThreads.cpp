@@ -294,40 +294,19 @@ void workerThread(std::atomic<bool>&                             server_running,
             std::vector<uint8_t> response;
             switch (*client_request.begin()) {
                 //NOTE: added breaks to all cases cause was not sure if needed
-                case INDEX_REQUEST: {
-                    clientIndexRequest(client_request, response, db);
-                    auto failed_servers = forwardIndexRequest(client_request, known_servers);
-                    if (!failed_servers.empty()){
-                        removeFailedServers(known_servers, failed_servers);
-                    }
-                    break;
-                }
+                case INDEX_REQUEST: 
                 case INDEX_FORWARD: {
                     clientIndexRequest(client_request, response, db);
                     break;
                 }
 
-                case DROP_REQUEST: {
-                    clientDropRequest(client_request, response, db);
-                    auto failed_servers = forwardDropRequest(client_request, known_servers);
-                    if (!failed_servers.empty()){
-                        removeFailedServers(known_servers, failed_servers);
-                    }
-                    break;
-                }
+                case DROP_REQUEST:
                 case DROP_FORWARD: {
                     clientDropRequest(client_request, response, db);
                     break;
                 }
 
-                case REREGISTER_REQUEST: {
-                    clientReregisterRequest(client_request, response, db);
-                    auto failed_servers = forwardReregRequest(client_request, known_servers);
-                    if (!failed_servers.empty()){
-                        removeFailedServers(known_servers, failed_servers);
-                    }
-                    break;
-                }
+                case REREGISTER_REQUEST: 
                 case REREGISTER_FORWARD: {
                     clientReregisterRequest(client_request, response, db);
                     break;
@@ -342,7 +321,7 @@ void workerThread(std::atomic<bool>&                             server_running,
                     clientServerRegistration(client_request, response, known_servers);
                     break;
                 }
-                //dident make a function for this one as its so simple
+                //keeping here as its just so simple
                 case FORWARD_SERVER_REG: {
                     SourceInfo new_server = parseForwardServerReg(client_request);
                     known_servers.push_back(new_server);

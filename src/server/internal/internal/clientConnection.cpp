@@ -75,6 +75,13 @@ std::pair<int, uint16_t> selectWorker(std::vector<uint8_t>&                     
 
 void broadcastToServers() {
 
+
+    //use
+    auto failed_servers = forwardIndexRequest(client_request, known_servers);
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+
 }
 
 void workerNoReply(int                                              udp_sock,
