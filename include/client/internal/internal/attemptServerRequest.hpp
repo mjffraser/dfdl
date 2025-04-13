@@ -29,6 +29,9 @@ namespace dfd {
  *    present, returns with an error.
  * -> connection_timeout:
  *    The timeout for how long to wait while connecting to the server.
+ * -> response_timeout:
+ *    The timeout for how long to wait after connecting to the server whilst
+ *    waiting for a reply.
  *
  * Returns:
  * -> On success:
@@ -64,6 +67,9 @@ int attemptIndex(const  FileId&     file,
  *    present, returns with an error.
  * -> connection_timeout:
  *    The timeout for how long to wait while connecting to the server.
+ * -> response_timeout:
+ *    The timeout for how long to wait after connecting to the server whilst
+ *    waiting for a reply.
  *
  * Returns:
  * -> On success:
@@ -94,6 +100,14 @@ int attemptDrop(const  IndexUuidPair& file,
  * -> dest:
  *    The vector to store the retrieved source list inside of. This vector is
  *    cleared during this process.
+ * -> server:
+ *    The server to attempt to connect to. If either the IP or port aren't
+ *    present, returns with an error.
+ * -> connection_timeout:
+ *    The timeout for how long to wait while connecting to the server.
+ * -> response_timeout:
+ *    The timeout for how long to wait after connecting to the server whilst
+ *    waiting for a reply.
  *
  * Returns:
  * -> On success:
@@ -107,5 +121,37 @@ int attemptSourceRetrieval(const uint64_t           file_uuid,
                            const  SourceInfo&       server,
                            struct timeval           connection_timeout,
                            struct timeval           response_timeout);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * attemptServerUpdate
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Attempts to connect to a server, submit a CLIENT_REG request, and parse
+ *    the response.
+ *
+ * Takes:
+ * -> dest:
+ *    The vector of SourceInfo to store the result in.
+ * -> server:
+ *    The server to attempt to connect to. If either the IP or port aren't
+ *    present, returns with an error.
+ * -> connection_timeout:
+ *    The timeout for how long to wait while connecting to the server.
+ * -> response_timeout:
+ *    The timeout for how long to wait after connecting to the server whilst
+ *    waiting for a reply.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCCESS
+ * -> On failure:
+ *    EXIT_FAILURE
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int attemptServerUpdate(std::vector<SourceInfo>& dest,
+                        const  SourceInfo&       server,
+                        struct timeval           connection_timeout,
+                        struct timeval           response_timeout);
 
 } //dfd

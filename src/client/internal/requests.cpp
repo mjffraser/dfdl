@@ -19,6 +19,7 @@ namespace dfd {
 static bool           timeout_init = false;
 static struct timeval connection_timeout;
 static struct timeval response_timeout;
+static struct timeval update_timeout;
 
 void init_timeouts() {
     //CONNECTION TIMEOUT: 0.5s
@@ -29,11 +30,18 @@ void init_timeouts() {
     response_timeout.tv_sec  = 2;
     response_timeout.tv_usec = 0;
 
+    //UPDATE TIMEOUT: 1s
+    update_timeout.tv_sec  = 1;
+    update_timeout.tv_usec = 0;
+
     timeout_init = true;
 }
 
 int updateServerList(std::vector<SourceInfo>& server_list) {
-    //TODO w/ server sync
+    std::cout << "Servers aren't responding. Refreshing server list. This may take a bit..." << std::endl;
+    
+
+
     return EXIT_SUCCESS;
 }
 

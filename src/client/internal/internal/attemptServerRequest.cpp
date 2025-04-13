@@ -108,9 +108,29 @@ int attemptSourceRetrieval(const uint64_t           file_uuid,
         return EXIT_FAILURE;
     }
 
-    std::cout << "SKLDJFJKLJFLKSDJFDSF" << std::endl;
     auto servers = parseSourceList(server_response);
     for (auto& s : servers) dest.push_back(s);
+    return EXIT_SUCCESS;
+}
+
+int attemptServerUpdate(std::vector<SourceInfo>& dest,
+                        const  SourceInfo&       server,
+                        struct timeval           connection_timeout,
+                        struct timeval           response_timeout) {
+    dest.clear();
+    std::vector<uint8_t> server_response;
+    
+    if (EXIT_FAILURE == attemptServerCommunication(server,
+                                                   {CLIENT_REG},
+                                                   server_response,
+                                                   REG_SERVERS_LIST,
+                                                   connection_timeout,
+                                                   response_timeout)) {
+        return EXIT_FAILURE;
+    }
+
+    auto servers = parseServerRegResponse(server_response);
+    for (const SourceInfo& s : servers) dest.push_back(s);
     return EXIT_SUCCESS;
 }
 
