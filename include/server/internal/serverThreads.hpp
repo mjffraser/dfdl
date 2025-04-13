@@ -122,6 +122,7 @@ void listenThread(std::atomic<bool>&                               server_runnin
  *    it to increment.
  * -> db:
  *    The Database class instance for this server.
+ * ->known servers and its mutex
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 void workerThread(std::atomic<bool>&                             server_running,
@@ -134,7 +135,9 @@ void workerThread(std::atomic<bool>&                             server_running,
                   uint16_t&                                      write_worker,
                   std::atomic<int>&                              setup_workers,
                   std::atomic<int>&                              setup_election_workers,
-                  Database*                                      db);
+                  Database*                                      db,
+                  std::vector<SourceInfo>&                       known_servers,
+                  std::mutex&                                    knowns_mtx);
 
 /*
 *

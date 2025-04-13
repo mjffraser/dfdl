@@ -88,11 +88,14 @@ void massWriteSend(SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_
  * -> known_servers:
  *    The list of known_servers maintained by this server, which is modified by
  *    this registration process.
+ * -> known server mutex
+ * -> our server
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 void joinNetwork(const SourceInfo&        known_server,
     Database*                open_db,
     std::vector<SourceInfo>& known_servers,
+    std::mutex&              knowns_mtx,
     SourceInfo               our_server);
 
 }//namespace

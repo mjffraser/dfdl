@@ -201,7 +201,8 @@ void workerThread(std::atomic<bool>&                             server_running,
                   std::atomic<int>&                              setup_workers,
                   std::atomic<int>&                              setup_election_workers,
                   Database*                                      db,
-                  std::vector<SourceInfo>&                       known_servers) {
+                  std::vector<SourceInfo>&                       known_servers,
+                  std::mutex&                                    knowns_mtx) {
     try {
         ///////////////////////////////////////////////////////////////////////
         //SETUP PROCESS
@@ -318,13 +319,16 @@ void workerThread(std::atomic<bool>&                             server_running,
 
                 //SYNCING STUFF
                 case SERVER_REG: {
-                    clientServerRegistration(client_request, response, known_servers);
+                    serverServerRegistration(client_request, response, known_servers);
                     break;
                 }
                 //keeping here as its just so simple
                 case FORWARD_SERVER_REG: {
                     SourceInfo new_server = parseForwardServerReg(client_request);
-                    known_servers.push_back(new_server);
+                    {
+                        std::lock_guard<std::mutex> lock(knowns_mtx);
+                        known_servers.push_back(new_server);
+                    }
                     response = {FORWARD_SERVER_OK};
                     break;
                 }

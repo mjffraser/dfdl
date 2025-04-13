@@ -214,6 +214,7 @@ void massWriteSend(SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_
 void joinNetwork(const SourceInfo&           known_server,
                     Database*                open_db,
                     std::vector<SourceInfo>& known_servers,
+                    std::mutex&              knowns_mtx,
                     SourceInfo               our_server) {
 
 
@@ -259,18 +260,23 @@ void joinNetwork(const SourceInfo&           known_server,
         return;
     }
 
-    //known_servers = all known severs of connected server+the connected server
-    known_servers = parseServerRegResponse(buffer);
-    known_servers.push_back(known_server);
+    {
+        //lock mutex
+        std::lock_guard<std::mutex> lock(knowns_mtx);
 
-    std::cout << "Registered with server network." << std::endl;
-    std::cout << "[DEBUG] SERVERS:" << std::endl;
-    for (auto& s : known_servers) {
-        std::cout << s.ip_addr << " " << s.port << std::endl;
+        //known_servers = all known severs of connected server+the connected server
+        known_servers = parseServerRegResponse(buffer);
+        known_servers.push_back(known_server);
+
+        std::cout << "Registered with server network." << std::endl;
+        std::cout << "[DEBUG] SERVERS:" << std::endl;
+        for (auto& s : known_servers) {
+            std::cout << s.ip_addr << " " << s.port << std::endl;
+        }
+
+        //close socket
+        closeSocket(client_sock);
     }
-
-    //close socket
-    closeSocket(client_sock);
 }
 
 

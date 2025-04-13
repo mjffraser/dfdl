@@ -130,7 +130,7 @@ void clientSourceRequest(const std::vector<uint8_t>& client_request,
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-void clientServerRegistration(std::vector<uint8_t>&      client_request,
+void serverServerRegistration(std::vector<uint8_t>&      client_request,
                                 std::vector<uint8_t>&    response_dest,
                                 std::vector<SourceInfo>& known_servers);
 

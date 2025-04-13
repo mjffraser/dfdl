@@ -69,20 +69,14 @@ void clientSourceRequest(const std::vector<uint8_t>& client_request,
 }
 
 //NOTE: no const on client request could mabye cause a issue
-void clientServerRegistration(std::vector<uint8_t>&      client_request,
+void serverServerRegistration(std::vector<uint8_t>&      client_request,
                                 std::vector<uint8_t>&    response_dest,
                                 std::vector<SourceInfo>& known_servers) {
     
     SourceInfo new_server = parseNewServerReg(client_request);
-    ssize_t registered_with = forwardRegistration(client_request, known_servers);
-    if (registered_with < 0) {
-        response_dest = createFailMessage("I appear to be a dead server myself?");
-    } else {
-        response_dest = createServerRegResponse(known_servers);
-        known_servers.push_back(new_server);
-        //currently unused
-        //db->backupDatabase("temp.db");
-    }  
+    response_dest = createServerRegResponse(known_servers);
+    known_servers.push_back(new_server);
+    //DB packup
 }
 
 }

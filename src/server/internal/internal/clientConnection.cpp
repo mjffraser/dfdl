@@ -7,6 +7,7 @@
 #include <thread>
 #include <array>
 #include <iostream>
+#include "server/internal/syncing.hpp"
 
 namespace dfd {
 
@@ -73,15 +74,50 @@ std::pair<int, uint16_t> selectWorker(std::vector<uint8_t>&                     
     return std::make_pair(worker_id, worker_port);
 }
 
-void broadcastToServers() {
-
-
-    //use
-    auto failed_servers = forwardIndexRequest(client_request, known_servers);
+void broadcastToServers(std::vector<uint8_t>&      client_request,
+                        std::vector<SourceInfo>&   known_servers) {
+    switch (*client_request.begin()) {
+                //NOTE: added breaks to all cases cause was not sure if needed
+                case INDEX_REQUEST: {
+                    //use
+                    auto failed_servers = forwardIndexRequest(client_request, known_servers);
                     if (!failed_servers.empty()){
                         removeFailedServers(known_servers, failed_servers);
                     }
+                    break;
+                }
 
+                case DROP_REQUEST: {
+                    //use
+                    auto failed_servers = forwardIndexRequest(client_request, known_servers);
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+                    break;
+                }
+
+                case REREGISTER_REQUEST: {
+                    //use
+                    auto failed_servers = forwardIndexRequest(client_request, known_servers);
+                    if (!failed_servers.empty()){
+                        removeFailedServers(known_servers, failed_servers);
+                    }
+                    break;
+                }
+
+                //SYNCING STUFF
+                case SERVER_REG: {
+                    SourceInfo new_server = parseNewServerReg(client_request);
+                    //server reg
+                    ssize_t registered_with = forwardRegistration(client_request, known_servers);
+                    std::cout << "number of servers registration was forwarded and acked" << registered_with << std::endl;
+                    break;
+                }
+                
+                default: {
+                    
+                }
+            }
 }
 
 void workerNoReply(int                                              udp_sock,
@@ -167,7 +203,8 @@ void clientConnection(int                                              client_so
                       std::array<std::atomic<int>,  WORKER_THREADS  >& worker_strikes,
                       std::array<uint16_t,          WORKER_THREADS-1>& read_workers,
                       uint16_t&                                        write_worker,
-                      std::mutex&                                      election_mtx) {
+                      std::mutex&                                      election_mtx,
+                      std::vector<SourceInfo>&                         known_servers) {
     //receive client message
     std::vector<uint8_t> client_request;
     if (EXIT_FAILURE == recvClientRequest(client_sock, client_request))
@@ -213,7 +250,7 @@ void clientConnection(int                                              client_so
             closeSocket(client_sock);
 
             //sync with other servers
-            broadcastToServers();
+            broadcastToServers(client_request, known_servers);
             return;
         }
         
