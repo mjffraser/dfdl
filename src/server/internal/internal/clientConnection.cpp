@@ -77,47 +77,45 @@ std::pair<int, uint16_t> selectWorker(std::vector<uint8_t>&                     
 void broadcastToServers(std::vector<uint8_t>&      client_request,
                         std::vector<SourceInfo>&   known_servers) {
     switch (*client_request.begin()) {
-                //NOTE: added breaks to all cases cause was not sure if needed
-                case INDEX_REQUEST: {
-                    //use
-                    auto failed_servers = forwardIndexRequest(client_request, known_servers);
-                    if (!failed_servers.empty()){
-                        removeFailedServers(known_servers, failed_servers);
-                    }
-                    break;
-                }
-
-                case DROP_REQUEST: {
-                    //use
-                    auto failed_servers = forwardIndexRequest(client_request, known_servers);
-                    if (!failed_servers.empty()){
-                        removeFailedServers(known_servers, failed_servers);
-                    }
-                    break;
-                }
-
-                case REREGISTER_REQUEST: {
-                    //use
-                    auto failed_servers = forwardIndexRequest(client_request, known_servers);
-                    if (!failed_servers.empty()){
-                        removeFailedServers(known_servers, failed_servers);
-                    }
-                    break;
-                }
-
-                //SYNCING STUFF
-                case SERVER_REG: {
-                    SourceInfo new_server = parseNewServerReg(client_request);
-                    //server reg
-                    ssize_t registered_with = forwardRegistration(client_request, known_servers);
-                    std::cout << "number of servers registration was forwarded and acked" << registered_with << std::endl;
-                    break;
-                }
-                
-                default: {
-                    
-                }
+        //NOTE: added breaks to all cases cause was not sure if needed
+        case INDEX_REQUEST: {
+            //use
+            auto failed_servers = forwardIndexRequest(client_request, known_servers);
+            if (!failed_servers.empty()){
+                removeFailedServers(known_servers, failed_servers);
             }
+            break;
+        }
+
+        case DROP_REQUEST: {
+            //use
+            auto failed_servers = forwardIndexRequest(client_request, known_servers);
+            if (!failed_servers.empty()){
+                removeFailedServers(known_servers, failed_servers);
+            }
+            break;
+        }
+
+        case REREGISTER_REQUEST: {
+            //use
+            auto failed_servers = forwardIndexRequest(client_request, known_servers);
+            if (!failed_servers.empty()){
+                removeFailedServers(known_servers, failed_servers);
+            }
+            break;
+        }
+
+        //SYNCING STUFF
+        case SERVER_REG: {
+            SourceInfo new_server = parseNewServerReg(client_request);
+            //server reg
+            ssize_t registered_with = forwardRegistration(client_request, known_servers);
+            std::cout << "number of servers registration was forwarded and acked" << registered_with << std::endl;
+            break;
+        }
+                
+        default: {}
+    }
 }
 
 void workerNoReply(int                                              udp_sock,
