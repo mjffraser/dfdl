@@ -89,6 +89,9 @@ namespace tcp {
  *    The socket to connect with.
  * -> connect_to:
  *    A struct with info on where to connect.
+ * -> connection_timeout:
+ *    An optional timeout for the connection. If the default is used, this
+ *    function will wait forever until success or failure.
  * 
  * Returns:
  * -> On success:
@@ -97,7 +100,9 @@ namespace tcp {
  *    -1 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int connect(int socket_fd, const SourceInfo& connect_to);
+int connect(int                                 socket_fd,
+            const SourceInfo&                   connect_to,
+            const std::optional<struct timeval> connection_timeout=std::nullopt);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -143,7 +148,9 @@ int listen(int server_fd, int max_pending);
  *    -1
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int accept(int server_fd, SourceInfo& client_info);
+int accept(int                                 server_fd,
+           SourceInfo&                         client_info,
+           const std::optional<struct timeval> accept_timeout=std::nullopt);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

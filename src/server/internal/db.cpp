@@ -5,6 +5,7 @@
 #include "sourceInfo.hpp"
 #include <chrono>
 #include <cstdlib>
+#include <iostream>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -253,11 +254,14 @@ int Database::grabSources(const uint64_t&          uuid,
         while (db_locking) {std::this_thread::sleep_for(std::chrono::milliseconds(1));}
         std::shared_lock<std::shared_mutex> lock(db_lock);
 
+
+
         auto err_val = doSelect(db, 
                                 INDEX_NAME, 
                                 {INDEX_ATTRIBUTES[0].first}, 
                                 {select_constraint},
                                 &peers);
+
         if (err_val)
             return reportError(err_val.value());
         else if (peers.empty())
@@ -274,11 +278,14 @@ int Database::grabSources(const uint64_t&          uuid,
             std::vector<Row> peer_row;
             SourceInfo s;
             select_constraint = PEER_KEY.first + "=" + r[0]; //id=[id selected above]
+            std::cout << "?" << std::endl;
             err_val = doSelect(db,
                                PEER_NAME,
                                to_select,
                                {select_constraint},
                                &peer_row);
+
+            std::cout << "?" << std::endl;
             if (err_val)
                 return reportError(err_val.value());
 

@@ -315,6 +315,7 @@ void workerThread(std::atomic<bool>&                             server_running,
 
                 case SOURCE_REQUEST: {
                     clientSourceRequest(client_request, response, db);
+                    break;
                 }
 
                 //SYNCING STUFF

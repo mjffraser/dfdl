@@ -41,6 +41,22 @@ set(NETWORKING_SRC
 
 set(CLIENT_SRC
     src/client/client.cpp
+
+    #client internals
+    src/client/internal/requests.cpp
+    src/client/internal/clientThreads.cpp
+    src/client/internal/clientConfigs.cpp
+
+    #nested threads and util
+    src/client/internal/internal/attemptServerRequest.cpp
+    src/client/internal/internal/attemptPeerRequest.cpp
+    src/client/internal/internal/seedThread.cpp
+    src/client/internal/internal/downloadThread.cpp
+
+    #lowest level util
+    src/client/internal/internal/internal/clientNetworking.cpp
+    src/client/internal/internal/internal/downloadHandshake.cpp
+    
 )
 
 set(ALL_SRC

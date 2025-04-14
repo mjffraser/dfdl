@@ -121,7 +121,7 @@ struct FileId {
  *    An empty buffer.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-std::vector<uint8_t> createIndexRequest(FileId& file_info);
+std::vector<uint8_t> createIndexRequest(const FileId& file_info);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -166,7 +166,7 @@ using IndexUuidPair = std::pair<uint64_t, uint64_t>;
  *    An empty buffer.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-std::vector<uint8_t> createDropRequest(IndexUuidPair& uuids);
+std::vector<uint8_t> createDropRequest(const IndexUuidPair& uuids);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
