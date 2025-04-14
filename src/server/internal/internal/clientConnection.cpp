@@ -202,7 +202,8 @@ void clientConnection(int                                              client_so
                       std::array<uint16_t,          WORKER_THREADS-1>& read_workers,
                       uint16_t&                                        write_worker,
                       std::mutex&                                      election_mtx,
-                      std::vector<SourceInfo>&                         known_servers) {
+                      std::vector<SourceInfo>&                         known_servers,
+                      std::mutex&                                      known_server_mtx) {
     //receive client message
     std::vector<uint8_t> client_request;
     if (EXIT_FAILURE == recvClientRequest(client_sock, client_request))

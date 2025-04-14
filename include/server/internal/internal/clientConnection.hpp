@@ -1,11 +1,13 @@
 #pragma once
 
 #include "config.hpp"
+#include "sourceInfo.hpp"
 
 #include <array>
 #include <atomic>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 namespace dfd {
 
@@ -50,5 +52,7 @@ void clientConnection(int                                              client_so
                       std::array<std::atomic<int>,  WORKER_THREADS  >& worker_strikes,
                       std::array<uint16_t,          WORKER_THREADS-1>& read_workers,
                       uint16_t&                                        write_worker,
-                      std::mutex&                                      election_mtx);
+                      std::mutex&                                      election_mtx,
+                      std::vector<SourceInfo>&                         known_servers,
+                      std::mutex&                                      known_server_mtx);
 }

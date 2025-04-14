@@ -69,7 +69,9 @@ void listenThread(std::atomic<bool>&                               server_runnin
                   std::array<std::atomic<int>,  WORKER_THREADS  >& worker_strikes,
                   std::array<uint16_t,          WORKER_THREADS-1>& read_workers,
                   uint16_t&                                        write_worker,
-                  std::mutex&                                      election_mtx);
+                  std::mutex&                                      election_mtx,
+                  std::vector<SourceInfo>&                         known_servers,
+                  std::mutex&                                      known_server_mtx);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -137,7 +139,7 @@ void workerThread(std::atomic<bool>&                             server_running,
                   std::atomic<int>&                              setup_election_workers,
                   Database*                                      db,
                   std::vector<SourceInfo>&                       known_servers,
-                  std::mutex&                                    knowns_mtx);
+                  std::mutex&                                    known_servers_mtx);
 
 /*
 *

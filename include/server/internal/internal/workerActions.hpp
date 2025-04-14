@@ -1,11 +1,13 @@
 #pragma once
 
+#include "sourceInfo.hpp"
+#include "server/internal/db.hpp"
+
 #include <cstdint>
 #include <vector>
 
 namespace dfd {
 
-class Database;
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

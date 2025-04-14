@@ -18,6 +18,7 @@ set(SERVER_SRC
 
     #server internals
     src/server/internal/db.cpp
+    src/server/internal/serverStartup.cpp
     src/server/internal/syncing.cpp
     src/server/internal/serverThreads.cpp
 

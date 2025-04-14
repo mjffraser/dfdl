@@ -28,7 +28,7 @@ void run_server(const std::string& ip,
     //global vector storing pairs of known server IPs and ports
     //currently empty but by sending a source request via join network should do it
     //join network currently broke
-    std::mutex              knowns_mtx;
+    std::mutex              known_servers_mtx;
     std::vector<SourceInfo> known_servers;
 
     //if we're connecting to another server, we need the info
@@ -87,7 +87,7 @@ void run_server(const std::string& ip,
                                  std::ref(setup_election_workers),
                                  my_db,
                                  std::ref(known_servers),
-                                 std::ref(knowns_mtx)); 
+                                 std::ref(known_servers_mtx)); 
     }
 
     std::thread control_thread(controlMsgThread,
@@ -120,12 +120,14 @@ void run_server(const std::string& ip,
                               std::ref(worker_strikes),
                               std::ref(read_workers),
                               std::ref(write_worker),
-                              std::ref(election_mtx));
+                              std::ref(election_mtx),
+                              std::ref(known_servers),
+                              std::ref(known_servers_mtx));
     
     ///////////////////////////////////////////////////////////////////////////
     //STEP 3: (OPTIONALLY) CONNECT TO ANOTHER SERVER
     if (!target_server.ip_addr.empty())
-        joinNetwork(target_server, my_db, known_servers, std::ref(knowns_mtx), our_address);
+        joinNetwork(target_server, my_db, known_servers, std::ref(known_servers_mtx), our_address);
 
     std::cout << "SERVER SETUP COMPLETE." << std::endl;
     ///////////////////////////////////////////////////////////////////////////
@@ -142,14 +144,16 @@ void run_server(const std::string& ip,
                                      std::ref(server_running),
                                      i,
                                      false,
-                                    std::ref(worker_stats),
-                                    std::ref(worker_strikes),
-                                    std::ref(read_workers),
-                                    std::ref(election_listeners),
-                                    std::ref(write_worker),
-                                    std::ref(setup_workers),
-                                    std::ref(setup_election_workers),
-                                    my_db); 
+                                     std::ref(worker_stats),
+                                     std::ref(worker_strikes),
+                                     std::ref(read_workers),
+                                     std::ref(election_listeners),
+                                     std::ref(write_worker),
+                                     std::ref(setup_workers),
+                                     std::ref(setup_election_workers),
+                                     my_db,
+                                     std::ref(known_servers),
+                                     std::ref(known_servers_mtx)); 
         }
     }
 
