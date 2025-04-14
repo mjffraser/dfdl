@@ -49,7 +49,7 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
         if (!socket) {
             //handle fail to open
             std::cerr << "[controlMsgThread] Failed to open socket\n";
-            return;
+            continue;
         }
 
         auto [sock_fd, my_port] = socket.value();
@@ -69,7 +69,8 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
             if (EXIT_FAILURE == tcp::sendMessage(sock_fd, control_msg)) {
                 std::cerr << "[controlMsgThread] Failed to send message to client.\n";
                 closeSocket(sock_fd);
-                return;
+                client_reachable = false;
+                break;
             }
 
             // expect client to ack back
@@ -102,7 +103,7 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
             if (!updete_sock) {
                 //handle fail to open
                 std::cerr << "[controlMsgThread] Failed to open update socket\n";
-                return;
+                break;
             }
 
             auto [updete_fd, updete_port] = updete_sock.value();
@@ -110,7 +111,7 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
             if (tcp::connect(updete_fd, our_server) < 0) {
                 std::cerr << "[controlMsgThread] Failed to connect with our server.\n";
                 closeSocket(updete_fd);
-                return;
+                break;
             }
 
             IndexUuidPair id_pair(file_uuid, faulty_client.peer_id);
@@ -118,14 +119,14 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
             if (EXIT_FAILURE == tcp::sendMessage(updete_fd,drop_msg)) {
                 std::cerr << "[controlMsgThread] Failed to send message to our server.\n";
                 closeSocket(updete_fd);
-                return;
+                break;
             }
 
             std::vector<uint8_t> update_respond;
             if (tcp::recvMessage(updete_fd, update_respond, timeout) < 0) {
                 std::cerr << "[controlMsgThread] Failed to recv message from our server.\n";
                 closeSocket(updete_fd);
-                return;
+                break;
             }
 
             if (update_respond[0] == FAIL) {
@@ -133,7 +134,6 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
             }
 
             closeSocket(updete_fd);
-            return;
         }
     }
 }
