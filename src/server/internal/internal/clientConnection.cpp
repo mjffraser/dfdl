@@ -108,7 +108,6 @@ void broadcastToServers(std::vector<uint8_t>&      client_request,
 
         //SYNCING STUFF
         case SERVER_REG: {
-            //for mass db send later
             SourceInfo new_server = parseNewServerReg(client_request);
             //server reg
             ssize_t registered_with = forwardRegistration(client_request, known_servers);
@@ -255,6 +254,14 @@ void clientConnection(int                                              client_so
 
             //sync with other servers
             broadcastToServers(client_request, known_servers, known_server_mtx);
+
+            //if server reg, add the server to my list
+            if (*client_request.begin() == SERVER_REG) {
+                std::lock_guard<std::mutex> lock(known_server_mtx);
+                SourceInfo si = parseNewServerReg(client_request);
+                known_servers.push_back(si);
+            }
+
             return;
         }
         

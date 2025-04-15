@@ -81,10 +81,7 @@ void serverToServerRegistration(std::vector<uint8_t>&      client_request,
     
     SourceInfo new_server = parseNewServerReg(client_request);
     response_dest = createServerRegResponse(known_servers);
-    {
-        std::lock_guard<std::mutex> lock(knowns_mtx);
-        known_servers.push_back(new_server);
-    }
+    
     //DB packup
 }
 
