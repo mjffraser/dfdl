@@ -92,7 +92,7 @@ void broadcastToServers(std::vector<uint8_t>&      client_request,
 
         case DROP_REQUEST: {
             //use
-            auto failed_servers = forwardIndexRequest(req_copy, known_servers);
+            auto failed_servers = forwardDropRequest(req_copy, known_servers);
             if (!failed_servers.empty()){
                 removeFailedServers(known_servers, failed_servers, known_server_mtx);
             }
@@ -101,7 +101,7 @@ void broadcastToServers(std::vector<uint8_t>&      client_request,
 
         case REREGISTER_REQUEST: {
             //use
-            auto failed_servers = forwardIndexRequest(req_copy, known_servers);
+            auto failed_servers = forwardReregRequest(req_copy, known_servers);
             if (!failed_servers.empty()){
                 removeFailedServers(known_servers, failed_servers, known_server_mtx);
             }

@@ -101,88 +101,87 @@ std::vector<SourceInfo> forwardRequest(
                         uint8_t expected_ret_code) {
     std::cout << "Forwarding" << std::endl;
 
-    // std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
-    // std::cout << (int)*initial_msg.begin() << std::endl;
-    // std::cout << (int)expected_in_code << std::endl;
-    //
-    // //make sure first byte is expected code
-    // if (*initial_msg.begin() != expected_in_code)
-    //     return servers;
-    //
-    // //check if creating forward worked
-    // if (expected_in_code == INDEX_REQUEST){
-    //     if (EXIT_SUCCESS != createForwardIndex(initial_msg))
-    //         return servers;
-    // }else if (expected_in_code == DROP_REQUEST)
-    // {
-    //     std::cout << "DROPPING" << std::endl;
-    //     if (EXIT_SUCCESS != createForwardDrop(initial_msg))
-    //         return servers;
-    // }else if (expected_in_code == REREGISTER_REQUEST)
-    // {
-    //     if (EXIT_SUCCESS != createForwardRereg(initial_msg))
-    //         return servers;
-    // }
-    //
-    // //stores failed serveres
-    // std::vector<SourceInfo> failed_servers;
-    //
-    // //loop thru all servers
-    // for (const auto& server : servers) {
-    //     //bool to check if success
-    //     bool success = false;
-    //
-    //     //loop X retrys (currently 2 can be changed)
-    //     for (int a = 0; a < 2 && !success; ++a) {
-    //         //attempt to open a client socket
-    //         auto sock = openSocket(false, 0);
-    //         if (!sock)
-    //             //sock cant open skip retrys
-    //             break;
-    //
-    //         auto& [server_sock, port] = sock.value();
-    //
-    //         //try connecting to the server
-    //         if (tcp::connect(server_sock, server) == -1) {
-    //             closeSocket(server_sock);
-    //             //skip
-    //             continue;
-    //         }
-    //
-    //         //ry sending the message
-    //         if (EXIT_SUCCESS != tcp::sendMessage(server_sock, initial_msg)) {
-    //             closeSocket(server_sock);
-    //             //skip
-    //             continue;
-    //         }
-    //
-    //         //prepare to receive the server's response
-    //         std::vector<uint8_t> server_response;
-    //         //set time out currently 2 secounds could be different
-    //         timeval timeout;
-    //         timeout.tv_sec  = 2;
-    //         timeout.tv_usec = 0;
-    //
-    //         //receive the response with timeout
-    //         if (tcp::recvMessage(server_sock, server_response, timeout) >= 0) {
-    //             //check response
-    //             if (!server_response.empty() && *server_response.begin() == expected_ret_code) {
-    //                 success = true;
-    //             }
-    //         }
-    //
-    //         //close socket
-    //         closeSocket(server_sock);
-    //     }
-    //
-    //     //if server never worked add to failed servers
-    //     if (!success)
-    //         failed_servers.push_back(server);
-    // }
-    //
-    // //return list of failed servers
-    // return failed_servers;
-    return {};
+    std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
+    std::cout << (int)*initial_msg.begin() << std::endl;
+    std::cout << (int)expected_in_code << std::endl;
+
+    //make sure first byte is expected code
+    if (*initial_msg.begin() != expected_in_code)
+        return servers;
+
+    //check if creating forward worked
+    if (expected_in_code == INDEX_REQUEST){
+        if (EXIT_SUCCESS != createForwardIndex(initial_msg))
+            return servers;
+    }else if (expected_in_code == DROP_REQUEST)
+    {
+        std::cout << "DROPPING" << std::endl;
+        if (EXIT_SUCCESS != createForwardDrop(initial_msg))
+            return servers;
+    }else if (expected_in_code == REREGISTER_REQUEST)
+    {
+        if (EXIT_SUCCESS != createForwardRereg(initial_msg))
+            return servers;
+    }
+
+    //stores failed serveres
+    std::vector<SourceInfo> failed_servers;
+
+    //loop thru all servers
+    for (const auto& server : servers) {
+        //bool to check if success
+        bool success = false;
+
+        //loop X retrys (currently 2 can be changed)
+        for (int a = 0; a < 2 && !success; ++a) {
+            //attempt to open a client socket
+            auto sock = openSocket(false, 0);
+            if (!sock)
+                //sock cant open skip retrys
+                break;
+
+            auto& [server_sock, port] = sock.value();
+
+            //try connecting to the server
+            if (tcp::connect(server_sock, server) == -1) {
+                closeSocket(server_sock);
+                //skip
+                continue;
+            }
+
+            //ry sending the message
+            if (EXIT_SUCCESS != tcp::sendMessage(server_sock, initial_msg)) {
+                closeSocket(server_sock);
+                //skip
+                continue;
+            }
+
+            //prepare to receive the server's response
+            std::vector<uint8_t> server_response;
+            //set time out currently 2 secounds could be different
+            timeval timeout;
+            timeout.tv_sec  = 2;
+            timeout.tv_usec = 0;
+
+            //receive the response with timeout
+            if (tcp::recvMessage(server_sock, server_response, timeout) >= 0) {
+                //check response
+                if (!server_response.empty() && *server_response.begin() == expected_ret_code) {
+                    success = true;
+                }
+            }
+
+            //close socket
+            closeSocket(server_sock);
+        }
+
+        //if server never worked add to failed servers
+        if (!success)
+            failed_servers.push_back(server);
+    }
+
+    //return list of failed servers
+    return failed_servers;
 }
 
 //calls forwarding index version
