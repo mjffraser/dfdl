@@ -210,29 +210,33 @@ std::vector<SourceInfo> forwardReregRequest(
 
 //removes any SourceInfo from known_servers that appears in failed_servers
 void removeFailedServers(std::vector<SourceInfo>& known_servers,
-                        const std::vector<SourceInfo>& failed_servers) {
+                        const std::vector<SourceInfo>& failed_servers,
+                        std::mutex&                     known_server_mtx) {
     for (auto& thing : failed_servers) {
         std::cout << thing.ip_addr << " " << thing.port << " " << thing.peer_id << std::endl; 
     }
     //iterate through known servers
-    for (size_t i = 0; i < known_servers.size(); ) {
-        bool match = false;
+    {
+        std::lock_guard<std::mutex> lock(known_server_mtx);
+        for (size_t i = 0; i < known_servers.size(); ) {
+            bool match = false;
 
-        //check if current known server is in the list of failed servers
-        for (size_t j = 0; j < failed_servers.size(); ++j) {
-            if (known_servers[i].ip_addr == failed_servers[j].ip_addr &&
-                known_servers[i].port    == failed_servers[j].port) {
-                    //set match true and break
-                match = true;
-                break;
+            //check if current known server is in the list of failed servers
+            for (size_t j = 0; j < failed_servers.size(); ++j) {
+                if (known_servers[i].ip_addr == failed_servers[j].ip_addr &&
+                    known_servers[i].port    == failed_servers[j].port) {
+                        //set match true and break
+                    match = true;
+                    break;
+                }
             }
-        }
-        //if match
-        if (match) {
-            //remove and stay at i
-            known_servers.erase(known_servers.begin() + i);
-        } else {
-            i++;
+            //if match
+            if (match) {
+                //remove and stay at i
+                known_servers.erase(known_servers.begin() + i);
+            } else {
+                i++;
+            }
         }
     }
 }

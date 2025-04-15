@@ -75,14 +75,15 @@ std::pair<int, uint16_t> selectWorker(std::vector<uint8_t>&                     
 }
 
 void broadcastToServers(std::vector<uint8_t>&      client_request,
-                        std::vector<SourceInfo>&   known_servers) {
+                        std::vector<SourceInfo>&   known_servers,
+                        std::mutex&                known_server_mtx) {
     switch (*client_request.begin()) {
         //NOTE: added breaks to all cases cause was not sure if needed
         case INDEX_REQUEST: {
             //use
             auto failed_servers = forwardIndexRequest(client_request, known_servers);
             if (!failed_servers.empty()){
-                removeFailedServers(known_servers, failed_servers);
+                removeFailedServers(known_servers, failed_servers, known_server_mtx);
             }
             break;
         }
@@ -91,7 +92,7 @@ void broadcastToServers(std::vector<uint8_t>&      client_request,
             //use
             auto failed_servers = forwardIndexRequest(client_request, known_servers);
             if (!failed_servers.empty()){
-                removeFailedServers(known_servers, failed_servers);
+                removeFailedServers(known_servers, failed_servers, known_server_mtx);
             }
             break;
         }
@@ -100,7 +101,7 @@ void broadcastToServers(std::vector<uint8_t>&      client_request,
             //use
             auto failed_servers = forwardIndexRequest(client_request, known_servers);
             if (!failed_servers.empty()){
-                removeFailedServers(known_servers, failed_servers);
+                removeFailedServers(known_servers, failed_servers, known_server_mtx);
             }
             break;
         }
@@ -252,7 +253,7 @@ void clientConnection(int                                              client_so
             closeSocket(client_sock);
 
             //sync with other servers
-            broadcastToServers(client_request, known_servers);
+            broadcastToServers(client_request, known_servers, known_server_mtx);
             return;
         }
         

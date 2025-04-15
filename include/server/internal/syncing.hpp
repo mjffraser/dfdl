@@ -111,7 +111,8 @@ std::vector<SourceInfo> forwardReregRequest(
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 void removeFailedServers(std::vector<SourceInfo>& known_servers,
-                            const std::vector<SourceInfo>& failed_servers);
+                            const std::vector<SourceInfo>& failed_servers,
+                            std::mutex&                     known_server_mtx);
 
 
 } //dfd 

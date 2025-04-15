@@ -337,6 +337,13 @@ void workerThread(std::atomic<bool>&                             server_running,
                     response = {FORWARD_SERVER_OK};
                     break;
                 }
+                case CLIENT_REG: {
+                    {
+                        std::lock_guard<std::mutex> lock(knowns_mtx);
+                        response = createServerRegResponse(known_servers);
+                    }
+                    break;
+                }
                 
                 default: {
                     response = createFailMessage("Invalid message type.");
