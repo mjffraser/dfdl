@@ -38,8 +38,6 @@ void init_timeouts() {
 }
 
 int updateServerList(std::vector<SourceInfo>& server_list) {
-    std::cout << "Servers aren't responding. Refreshing server list. This may take a bit..." << std::endl;
-    
 
 
     return EXIT_SUCCESS;
@@ -114,9 +112,10 @@ bool doAttempts(std::vector<SourceInfo>& server_list,
     std::vector<SourceInfo> bad_servers;
     bool success = false;
 
+    updateServerList(server_list);
+
     //try once with current server list, then update it and try one more time
     for (int i = 0; i < 2 && !success; ++i) {
-        if (i == 1) {}//TODO UPDATE SERVER LIST WITH SYNC
         struct timeval conn_timeout = connection_timeout;
         //try three times, with increasing timeouts on each attempt
         for (int j = 0; j < 3 && !success; ++j) {
