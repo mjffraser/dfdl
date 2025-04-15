@@ -77,6 +77,7 @@ std::pair<int, uint16_t> selectWorker(std::vector<uint8_t>&                     
 void broadcastToServers(std::vector<uint8_t>&      client_request,
                         std::vector<SourceInfo>&   known_servers,
                         std::mutex&                known_server_mtx) {
+    std::cout << "BROADCASTING" << std::endl;
     std::vector<uint8_t> req_copy(client_request);
     switch (*req_copy.begin()) {
         //NOTE: added breaks to all cases cause was not sure if needed

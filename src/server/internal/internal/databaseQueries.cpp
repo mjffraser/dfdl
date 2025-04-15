@@ -162,8 +162,6 @@ std::optional<std::string> doDelete(sqlite3*                 db,
     int res = sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
     if (res != SQLITE_OK)
         return sqlite3_errmsg(db);
-    if (sqlite3_changes(db) < 1)
-        return "Could not delete row.";
     return std::nullopt;
 }
 
