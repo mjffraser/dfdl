@@ -71,6 +71,21 @@ void signalHandler(int sig) {
     shutdown = true;
 }
 
+void printList(std::map<uint64_t, std::string>& indexed_files) {
+    if (indexed_files.empty()) {
+        std::cout << "No files indexed." << std::endl;
+        return;
+    }
+
+    std::map<uint64_t, std::string>::iterator it;
+    for (it = indexed_files.begin(); it != indexed_files.end(); ++it) {
+        std::cout << "UUID: " << it->first
+                  << ", "
+                  << "Filename: " << it->second
+                  << std::endl;
+    }
+}
+
 void printHelp() {
     std::cout << "Available commands:\n";
     std::cout << "  list                - List all currently indexed files\n";
@@ -216,7 +231,7 @@ void client_main(const std::string&                     listen_addr,
             }
 
             case LIST: {
-                // handleList
+                printList(indexed_files);
                 break;
             }
 
