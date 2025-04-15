@@ -77,11 +77,12 @@ std::pair<int, uint16_t> selectWorker(std::vector<uint8_t>&                     
 void broadcastToServers(std::vector<uint8_t>&      client_request,
                         std::vector<SourceInfo>&   known_servers,
                         std::mutex&                known_server_mtx) {
-    switch (*client_request.begin()) {
+    std::vector<uint8_t> req_copy(client_request);
+    switch (*req_copy.begin()) {
         //NOTE: added breaks to all cases cause was not sure if needed
         case INDEX_REQUEST: {
             //use
-            auto failed_servers = forwardIndexRequest(client_request, known_servers);
+            auto failed_servers = forwardIndexRequest(req_copy, known_servers);
             if (!failed_servers.empty()){
                 removeFailedServers(known_servers, failed_servers, known_server_mtx);
             }
@@ -90,7 +91,7 @@ void broadcastToServers(std::vector<uint8_t>&      client_request,
 
         case DROP_REQUEST: {
             //use
-            auto failed_servers = forwardIndexRequest(client_request, known_servers);
+            auto failed_servers = forwardIndexRequest(req_copy, known_servers);
             if (!failed_servers.empty()){
                 removeFailedServers(known_servers, failed_servers, known_server_mtx);
             }
@@ -99,7 +100,7 @@ void broadcastToServers(std::vector<uint8_t>&      client_request,
 
         case REREGISTER_REQUEST: {
             //use
-            auto failed_servers = forwardIndexRequest(client_request, known_servers);
+            auto failed_servers = forwardIndexRequest(req_copy, known_servers);
             if (!failed_servers.empty()){
                 removeFailedServers(known_servers, failed_servers, known_server_mtx);
             }
@@ -108,9 +109,9 @@ void broadcastToServers(std::vector<uint8_t>&      client_request,
 
         //SYNCING STUFF
         case SERVER_REG: {
-            SourceInfo new_server = parseNewServerReg(client_request);
+            SourceInfo new_server = parseNewServerReg(req_copy);
             //server reg
-            ssize_t registered_with = forwardRegistration(client_request, known_servers);
+            ssize_t registered_with = forwardRegistration(req_copy, known_servers);
             std::cout << "number of servers registration was forwarded and acked" << registered_with << std::endl;
             break;
         }
@@ -207,8 +208,15 @@ void clientConnection(int                                              client_so
                       std::mutex&                                      known_server_mtx) {
     //receive client message
     std::vector<uint8_t> client_request;
+    SourceInfo client;
     if (EXIT_FAILURE == recvClientRequest(client_sock, client_request))
         return;
+
+    if (*client_request.begin() == SERVER_REG) {
+        SourceInfo si = parseNewServerReg(client_request);
+        client.ip_addr = si.ip_addr;
+        client.port    = si.port;
+    }
     
     //open udp sock to talk to worker
     auto udp_sock_init = openSocket(false, 0, true);
@@ -258,8 +266,12 @@ void clientConnection(int                                              client_so
             //if server reg, add the server to my list
             if (*client_request.begin() == SERVER_REG) {
                 std::lock_guard<std::mutex> lock(known_server_mtx);
-                SourceInfo si = parseNewServerReg(client_request);
-                known_servers.push_back(si);
+                known_servers.push_back(client);
+            }
+
+            std::cout << "SERVER LIST:" << std::endl;
+            for (auto& serv : known_servers) {
+                std::cout << serv.ip_addr << " " << serv.port << std::endl;
             }
 
             return;

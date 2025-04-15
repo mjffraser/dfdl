@@ -327,9 +327,11 @@ void workerThread(std::atomic<bool>&                             server_running,
 
                 //SYNCING STUFF
                 case SERVER_REG: {
+                    std::cout << "SERVER_REG" << std::endl;
                     serverToServerRegistration(client_request, response, known_servers, knowns_mtx);
                     break;
                 }
+
                 //keeping here as its just so simple
                 case FORWARD_SERVER_REG: {
                     SourceInfo new_server = parseForwardServerReg(client_request);
@@ -340,6 +342,7 @@ void workerThread(std::atomic<bool>&                             server_running,
                     response = {FORWARD_SERVER_OK};
                     break;
                 }
+
                 case CLIENT_REG: {
                     {
                         std::lock_guard<std::mutex> lock(knowns_mtx);
