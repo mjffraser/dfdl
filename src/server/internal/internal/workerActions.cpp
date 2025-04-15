@@ -74,13 +74,17 @@ void clientSourceRequest(const std::vector<uint8_t>& client_request,
 }
 
 //NOTE: no const on client request could mabye cause a issue
-void serverServerRegistration(std::vector<uint8_t>&      client_request,
+void serverToServerRegistration(std::vector<uint8_t>&      client_request,
                                 std::vector<uint8_t>&    response_dest,
-                                std::vector<SourceInfo>& known_servers) {
+                                std::vector<SourceInfo>& known_servers,
+                                std::mutex&              knowns_mtx) {
     
     SourceInfo new_server = parseNewServerReg(client_request);
     response_dest = createServerRegResponse(known_servers);
-    known_servers.push_back(new_server);
+    {
+        std::lock_guard<std::mutex> lock(knowns_mtx);
+        known_servers.push_back(new_server);
+    }
     //DB packup
 }
 
