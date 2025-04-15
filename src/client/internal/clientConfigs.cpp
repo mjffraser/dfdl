@@ -75,7 +75,7 @@ int storeHostListToDisk(const std::vector<SourceInfo> &hosts, const std::string 
     }
 
     for (const auto& h : hosts) {
-        out << h.peer_id << ", " << h.ip_addr << ", " << h.port << '\n';
+        out << 0 << ", " << h.ip_addr << ", " << h.port << '\n';
         if (!out)
             return EXIT_FAILURE;
     }
