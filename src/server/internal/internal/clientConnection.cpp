@@ -108,6 +108,7 @@ void broadcastToServers(std::vector<uint8_t>&      client_request,
 
         //SYNCING STUFF
         case SERVER_REG: {
+            //for mass db send later
             SourceInfo new_server = parseNewServerReg(client_request);
             //server reg
             ssize_t registered_with = forwardRegistration(client_request, known_servers);

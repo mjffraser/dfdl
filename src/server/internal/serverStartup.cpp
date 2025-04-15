@@ -220,7 +220,7 @@ void joinNetwork(const SourceInfo&           known_server,
 
     // Extract IP and port
     std::string server_ip = known_server.ip_addr;
-    uint8_t server_port   = known_server.port;
+    uint16_t server_port  = known_server.port;
 
     //open client TCP socket (unsure if server_port is right or if I should default this to somethin)
     auto socket = openSocket(false, server_port);
