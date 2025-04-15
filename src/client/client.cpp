@@ -13,6 +13,7 @@
 #include <vector>
 #include <iostream>
 #include <atomic>
+#include <algorithm>
 
 namespace dfd {
 
@@ -33,7 +34,15 @@ int client_startup(const std::string& ip,
         SourceInfo cmdline_addr;
         cmdline_addr.ip_addr = ip;
         cmdline_addr.port    = port;
-        server_list.push_back(cmdline_addr);
+
+        auto it = std::find_if(server_list.begin(), server_list.end(),
+        [&cmdline_addr](const SourceInfo& s) {
+            return s.ip_addr == cmdline_addr.ip_addr && s.port == cmdline_addr.port;
+        });
+
+        if (it == server_list.end()) {
+            server_list.push_back(cmdline_addr);
+        }
     } 
 
     //check we have at minimum one server
