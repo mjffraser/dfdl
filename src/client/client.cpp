@@ -295,6 +295,9 @@ void run_client(const std::string& ip,
     //shutdown
     std::cout << "Shutting down..." << std::endl;
     shutdown = true;
+
+    storeHostListToDisk(server_list, HOST_FILE_NAME);
+
     my_listener.join(); 
     exit(EXIT_SUCCESS);
 }
