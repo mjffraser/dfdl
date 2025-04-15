@@ -37,10 +37,27 @@ void init_timeouts() {
     timeout_init = true;
 }
 
-int updateServerList(std::vector<SourceInfo>& server_list) {
+int updateServerList(std::vector<SourceInfo>& server_list)
+{
+    const std::vector<SourceInfo> snapshot = server_list;
 
+    for (const SourceInfo& srv : snapshot)
+    {
+        std::vector<SourceInfo> new_list;
 
-    return EXIT_SUCCESS;
+        if (attemptServerUpdate(new_list,
+                                srv,
+                                connection_timeout,
+                                response_timeout) == EXIT_SUCCESS)
+        {
+            new_list.push_back(srv);
+
+            server_list.swap(new_list);
+            return EXIT_SUCCESS;
+        }
+    }
+
+    return EXIT_FAILURE;
 }
 
 std::optional<FileId> parseFile(const SourceInfo&  my_listener,
@@ -145,7 +162,7 @@ int doIndex(const SourceInfo&                      my_listener,
                   std::vector<SourceInfo>&         server_list) {
     if (!timeout_init) init_timeouts();
 
-    auto file = parseFile(my_listener, file_path); 
+    auto file = parseFile(my_listener, file_path);
     if (!file)
         return EXIT_FAILURE;
     FileId& f_info = file.value();
@@ -170,7 +187,7 @@ int doDrop(const SourceInfo&                       my_listener,
                   std::vector<SourceInfo>&         server_list) {
     if (!timeout_init) init_timeouts();
 
-    auto file = parseFile(my_listener, file_path); 
+    auto file = parseFile(my_listener, file_path);
     if (!file)
         return EXIT_FAILURE;
     FileId& f_info = file.value();
@@ -237,7 +254,7 @@ int doDownload(const uint64_t                 f_uuid,
             f_stats[peer_ind] = true; //reset, a download thread can use this peer
             break;
         }
-        //otherwise, move on to next peer in the list        
+        //otherwise, move on to next peer in the list
     }
 
     ///END STAGE 1: WE LOCK IN THE PEER LIST WE'RE USING PAST THIS POINT
@@ -248,9 +265,9 @@ int doDownload(const uint64_t                 f_uuid,
         if (f_name.empty()) //if not empty, we already have the file in our download dir, and errored due to that
             std::cerr << "[err] Exhausted peer list before a peer responded. Please try again later." << std::endl;
         return EXIT_FAILURE;
-    }  
+    }
 
-    auto chunks_in_file_opt = fileChunks(f_size); 
+    auto chunks_in_file_opt = fileChunks(f_size);
     if (!chunks_in_file_opt) {
         std::cerr << "[err] Received erroneous file size." << std::endl;
         return EXIT_FAILURE;
@@ -333,7 +350,7 @@ int doDownload(const uint64_t                 f_uuid,
             std::cerr << "[err] All peers have dropped out mid-download. Cannot continue, sorry." << std::endl;
             return EXIT_FAILURE;
         }
-        
+
         //any chunks that haven't been written yet
         while (!done_chunks.empty()) {
             size_t c = done_chunks.front(); done_chunks.pop();
@@ -355,4 +372,3 @@ int doDownload(const uint64_t                 f_uuid,
 }
 
 } //dfd
-
