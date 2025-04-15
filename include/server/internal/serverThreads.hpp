@@ -139,7 +139,10 @@ void workerThread(std::atomic<bool>&                             server_running,
                   std::atomic<int>&                              setup_election_workers,
                   Database*                                      db,
                   std::vector<SourceInfo>&                       known_servers,
-                  std::mutex&                                    known_servers_mtx);
+                  std::mutex&                                    known_servers_mtx,
+                  std::queue<std::pair<SourceInfo, uint64_t>>&   control_q,
+                  std::condition_variable&                       control_cv,
+                  std::mutex&                                    control_mtx);
 
 /*
 *

@@ -87,7 +87,10 @@ void run_server(const std::string& ip,
                                  std::ref(setup_election_workers),
                                  my_db,
                                  std::ref(known_servers),
-                                 std::ref(known_servers_mtx)); 
+                                 std::ref(known_servers_mtx),
+                                 std::ref(control_q),
+                                 std::ref(control_cv),
+                                 std::ref(control_mtx)); 
     }
 
     std::thread control_thread(controlMsgThread,
@@ -153,7 +156,10 @@ void run_server(const std::string& ip,
                                      std::ref(setup_election_workers),
                                      my_db,
                                      std::ref(known_servers),
-                                     std::ref(known_servers_mtx)); 
+                                     std::ref(known_servers_mtx),
+                                     std::ref(control_q),
+                                     std::ref(control_cv),
+                                     std::ref(control_mtx)); 
         }
     }
 

@@ -206,7 +206,10 @@ void workerThread(std::atomic<bool>&                             server_running,
                   std::atomic<int>&                              setup_election_workers,
                   Database*                                      db,
                   std::vector<SourceInfo>&                       known_servers,
-                  std::mutex&                                    knowns_mtx) {
+                  std::mutex&                                    knowns_mtx,
+                  std::queue<std::pair<SourceInfo, uint64_t>>&   control_q,
+                  std::condition_variable&                       control_cv,
+                  std::mutex&                                    control_mtx) {
     try {
         ///////////////////////////////////////////////////////////////////////
         //SETUP PROCESS
@@ -343,6 +346,20 @@ void workerThread(std::atomic<bool>&                             server_running,
                         response = createServerRegResponse(known_servers);
                     }
                     break;
+                }
+                
+                case CONTROL_REQUEST: {
+                    auto [file_uuid, faulty_client] = parseControlRequest(client_request);
+                    if (faulty_client.port == 0) {
+                        response = createFailMessage("Invalid message.");
+                    } else {
+                        {
+                            std::lock_guard<std::mutex> lock(control_mtx);
+                            control_q.push({faulty_client, file_uuid});
+                        }
+                        control_cv.notify_one();
+                    break;
+                    }
                 }
                 
                 default: {
