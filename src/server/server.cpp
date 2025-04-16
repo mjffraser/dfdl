@@ -97,7 +97,8 @@ void run_server(const std::string& ip,
                                  std::ref(known_servers_mtx),
                                  std::ref(control_q),
                                  std::ref(control_cv),
-                                 std::ref(control_mtx)); 
+                                 std::ref(control_mtx),
+                                 std::ref(record_msgs)); 
     }
 
     std::thread control_thread(controlMsgThread,
