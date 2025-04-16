@@ -131,13 +131,15 @@ void clientSourceRequest(const std::vector<uint8_t>& client_request,
  *    A pointer to the known servers vector to modify.
  * -> db:
  *    A database pointer
- *
+* -> record_msgs:
+ *    A flag that is true when messages are to be recorded.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-void serverToServerRegistration(std::vector<uint8_t>&      client_request,
-                                std::vector<uint8_t>&    response_dest,
-                                std::vector<SourceInfo>& known_servers,
-                                std::mutex&              knowns_mtx,
-                                Database*                       db);
+void serverToServerRegistration(std::vector<uint8_t>&               client_request,
+                                std::vector<uint8_t>&               response_dest,
+                                std::vector<SourceInfo>&            known_servers,
+                                std::mutex&                         knowns_mtx,
+                                Database*                           db,
+                                std::atomic<bool>&                  record_msgs);
 
 } //dfd

@@ -148,7 +148,9 @@ void listenThread(std::atomic<bool>&                               server_runnin
                   uint16_t&                                        write_worker,
                   std::mutex&                                      election_mtx,
                   std::vector<SourceInfo>&                         known_servers,
-                  std::mutex&                                      known_servers_mtx) {
+                  std::mutex&                                      known_servers_mtx,
+                  std::atomic<bool>&                               record_msgs,
+                  std::queue<std::vector<uint8_t>>&                record_queue) {
     ///////////////////////////////////////////////////////////////////////
     //SETUP PROCESS
     auto socket = openSocket(true, port);
@@ -184,7 +186,9 @@ void listenThread(std::atomic<bool>&                               server_runnin
                                     std::ref(write_worker),
                                     std::ref(election_mtx),
                                     std::ref(known_servers),
-                                    std::ref(known_servers_mtx));
+                                    std::ref(known_servers_mtx),
+                                    std::ref(record_msgs),
+                                    std::ref(record_queue));
             client_conn.detach();
         }
     }
@@ -209,7 +213,8 @@ void workerThread(std::atomic<bool>&                             server_running,
                   std::mutex&                                    knowns_mtx,
                   std::queue<std::pair<SourceInfo, uint64_t>>&   control_q,
                   std::condition_variable&                       control_cv,
-                  std::mutex&                                    control_mtx) {
+                  std::mutex&                                    control_mtx,
+                  std::atomic<bool>&                             record_msgs) {
     try {
         ///////////////////////////////////////////////////////////////////////
         //SETUP PROCESS
@@ -328,7 +333,7 @@ void workerThread(std::atomic<bool>&                             server_running,
                 //SYNCING STUFF
                 case SERVER_REG: {
                     std::cout << "SERVER_REG" << std::endl;
-                    serverToServerRegistration(client_request, response, known_servers, knowns_mtx, db);
+                    serverToServerRegistration(client_request, response, known_servers, knowns_mtx, db, record_msgs);
                     break;
                 }
 

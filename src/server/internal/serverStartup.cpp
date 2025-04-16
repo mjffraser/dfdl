@@ -218,7 +218,7 @@ void massWriteSend(SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_
         return;
     }
 
-    //loop thru each qued msg and send a forwarded version if its a valid msg to send (this block is awful)
+    //loop thru each qued msg and send a forwarded version if its a valid msg to send (big ol switch)
     while (!msg_queue.empty()) {
         auto spoof_sock = openSocket(false, 0);
         if (!spoof_sock) {
@@ -233,7 +233,9 @@ void massWriteSend(SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_
         std::vector<uint8_t> the_send;
     
         //make sure msg is not empty and get msg type
-        if (msg.empty()) continue;
+        if (msg.empty()){
+            continue;
+        }
         uint8_t msg_type = msg[0];
     
         switch (msg_type) {

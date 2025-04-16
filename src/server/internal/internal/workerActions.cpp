@@ -74,14 +74,16 @@ void clientSourceRequest(const std::vector<uint8_t>& client_request,
 }
 
 //NOTE: no const on client request could mabye cause a issue
-void serverToServerRegistration(std::vector<uint8_t>&    client_request,
-                                std::vector<uint8_t>&    response_dest,
-                                std::vector<SourceInfo>& known_servers,
-                                std::mutex&              knowns_mtx,
-                                Database*                       db) {
+void serverToServerRegistration(std::vector<uint8_t>&               client_request,
+                                std::vector<uint8_t>&               response_dest,
+                                std::vector<SourceInfo>&            known_servers,
+                                std::mutex&                         knowns_mtx,
+                                Database*                           db,
+                                std::atomic<bool>&                  record_msgs) {
     
     SourceInfo new_server = parseNewServerReg(client_request);
-
+    //set record_msgs to true
+    record_msgs = true;
     //package up db
     if (db->backupDatabase("temp.db") != EXIT_SUCCESS) {
         std::cerr << "db backup into file failed" << std::endl;

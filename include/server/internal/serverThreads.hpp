@@ -59,6 +59,11 @@ struct SourceInfo;
  *    The mutex to aquire a lock on to call an election. Any function including
  *    this one that attempts to modify db_workers in any way must aquire this
  *    lock to do so in a safe manner.
+ * -> record_msgs:
+ *    A flag that is true when messages are to be recorded.
+ * -> record_queue:
+ *    A q to record all variables when a database migration is occuring to prevent
+ *    race conditions.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 void listenThread(std::atomic<bool>&                               server_running,
@@ -71,7 +76,9 @@ void listenThread(std::atomic<bool>&                               server_runnin
                   uint16_t&                                        write_worker,
                   std::mutex&                                      election_mtx,
                   std::vector<SourceInfo>&                         known_servers,
-                  std::mutex&                                      known_server_mtx);
+                  std::mutex&                                      known_server_mtx,
+                  std::atomic<bool>&                               record_msgs,
+                  std::queue<std::vector<uint8_t>>&                record_queue);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -124,7 +131,14 @@ void listenThread(std::atomic<bool>&                               server_runnin
  *    it to increment.
  * -> db:
  *    The Database class instance for this server.
- * ->known servers and its mutex
+ * -> known_servers:
+ *    Vector of known servers.
+ * -> known_server_mtx:
+ *    Mutex for known servers.
+ * -> control_q, control_cv, control_mtx:
+ *    The control que and its conditional variable for access as well as a mutex to protect it.
+ * -> record_msgs:
+ *    A flag that is true when messages are to be recorded.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 void workerThread(std::atomic<bool>&                             server_running,
@@ -142,7 +156,9 @@ void workerThread(std::atomic<bool>&                             server_running,
                   std::mutex&                                    known_servers_mtx,
                   std::queue<std::pair<SourceInfo, uint64_t>>&   control_q,
                   std::condition_variable&                       control_cv,
-                  std::mutex&                                    control_mtx);
+                  std::mutex&                                    control_mtx,
+                  std::atomic<bool>&                             record_msgs);
+ 
 
 /*
 *

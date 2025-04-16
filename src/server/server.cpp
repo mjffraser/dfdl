@@ -31,6 +31,12 @@ void run_server(const std::string& ip,
     std::mutex              known_servers_mtx;
     std::vector<SourceInfo> known_servers;
 
+    //globals related to the mass write send:
+    //mass write send is a way to cover for potential requests which are recived during the database
+    //migration proccess to a new server: this is a pair of a flag and a que which is filled when the flag is true
+    std::atomic<bool> record_msgs = false;
+    std::queue<std::vector<uint8_t>> record_queue;
+
     //if we're connecting to another server, we need the info
     SourceInfo target_server;
     if (!connect_ip.empty()) {
