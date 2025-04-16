@@ -36,6 +36,7 @@ void run_server(const std::string& ip,
     //migration proccess to a new server: this is a pair of a flag and a que which is filled when the flag is true
     std::atomic<bool> record_msgs = false;
     std::queue<std::vector<uint8_t>> record_queue;
+    std::mutex record_queue_mtx;
 
     //if we're connecting to another server, we need the info
     SourceInfo target_server;

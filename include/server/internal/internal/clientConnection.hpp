@@ -48,6 +48,8 @@ namespace dfd {
  * -> record_queue:
  *    A q to record all variables when a database migration is occuring to prevent
  *    race conditions.
+ * -> record_queue_mtx:
+ *    The mutex for the record que
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 void clientConnection(int                                              client_sock,
@@ -61,5 +63,6 @@ void clientConnection(int                                              client_so
                       std::vector<SourceInfo>&                         known_servers,
                       std::mutex&                                      known_server_mtx,
                       std::atomic<bool>&                               record_msgs,
-                      std::queue<std::vector<uint8_t>>&                record_queue);
+                      std::queue<std::vector<uint8_t>>&                record_queue,
+                      std::mutex&                                      record_queue_mtx);
 }

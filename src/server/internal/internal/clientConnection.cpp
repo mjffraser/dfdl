@@ -210,7 +210,8 @@ void clientConnection(int                                              client_so
                       std::vector<SourceInfo>&                         known_servers,
                       std::mutex&                                      known_server_mtx,
                       std::atomic<bool>&                               record_msgs,
-                      std::queue<std::vector<uint8_t>>&                record_queue) {
+                      std::queue<std::vector<uint8_t>>&                record_queue,
+                      std::mutex&                                      record_queue_mtx) {
     //receive client message
     std::vector<uint8_t> client_request;
     SourceInfo client;
@@ -232,11 +233,23 @@ void clientConnection(int                                              client_so
 
     if (*client_request.begin() == DOWNLOAD_INIT) {
         databaseSendNS(client_sock);
-
+        {
+            std::lock_guard<std::mutex> lock(record_queue_mtx);
+            massWriteSend(client, record_queue);
+        }
+        record_msgs = false;
         closeSocket(client_sock);
         return;
     }
     
+    //save to mass write send
+    if (record_msgs == true){
+        {
+            std::lock_guard<std::mutex> lock(record_queue_mtx);
+            record_queue.push(client_request);
+        }
+    }
+
     //open udp sock to talk to worker
     auto udp_sock_init = openSocket(false, 0, true);
     if (!udp_sock_init) {
@@ -292,8 +305,6 @@ void clientConnection(int                                              client_so
             for (auto& serv : known_servers) {
                 std::cout << serv.ip_addr << " " << serv.port << std::endl;
             }
-
-            //FINDER: HERE WE PUT SUCCESS IN Q
 
             return;
         }
