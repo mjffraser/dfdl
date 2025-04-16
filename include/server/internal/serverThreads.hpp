@@ -78,7 +78,8 @@ void listenThread(std::atomic<bool>&                               server_runnin
                   std::vector<SourceInfo>&                         known_servers,
                   std::mutex&                                      known_server_mtx,
                   std::atomic<bool>&                               record_msgs,
-                  std::queue<std::vector<uint8_t>>&                record_queue);
+                  std::queue<std::vector<uint8_t>>&                record_queue,
+                  std::mutex&                                      record_queue_mtx);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

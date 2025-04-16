@@ -10,6 +10,7 @@
 #include <iostream>
 #include "server/internal/syncing.hpp"
 #include "server/internal/serverStartup.hpp"
+#include <queue>
 
 namespace dfd {
 

@@ -132,7 +132,10 @@ void run_server(const std::string& ip,
                               std::ref(write_worker),
                               std::ref(election_mtx),
                               std::ref(known_servers),
-                              std::ref(known_servers_mtx));
+                              std::ref(known_servers_mtx),
+                              std::ref(record_msgs),
+                              std::ref(record_queue),
+                              std::ref(record_queue_mtx));
     
     ///////////////////////////////////////////////////////////////////////////
     //STEP 3: (OPTIONALLY) CONNECT TO ANOTHER SERVER
@@ -166,7 +169,8 @@ void run_server(const std::string& ip,
                                      std::ref(known_servers_mtx),
                                      std::ref(control_q),
                                      std::ref(control_cv),
-                                     std::ref(control_mtx)); 
+                                     std::ref(control_mtx),
+                                     std::ref(record_msgs)); 
         }
     }
 

@@ -150,7 +150,8 @@ void listenThread(std::atomic<bool>&                               server_runnin
                   std::vector<SourceInfo>&                         known_servers,
                   std::mutex&                                      known_servers_mtx,
                   std::atomic<bool>&                               record_msgs,
-                  std::queue<std::vector<uint8_t>>&                record_queue) {
+                  std::queue<std::vector<uint8_t>>&                record_queue,
+                  std::mutex&                                      record_queue_mtx) {
     ///////////////////////////////////////////////////////////////////////
     //SETUP PROCESS
     auto socket = openSocket(true, port);
@@ -188,7 +189,8 @@ void listenThread(std::atomic<bool>&                               server_runnin
                                     std::ref(known_servers),
                                     std::ref(known_servers_mtx),
                                     std::ref(record_msgs),
-                                    std::ref(record_queue));
+                                    std::ref(record_queue),
+                                    std::ref(record_queue_mtx));
             client_conn.detach();
         }
     }
