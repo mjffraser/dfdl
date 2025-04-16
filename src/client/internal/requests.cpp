@@ -144,7 +144,6 @@ bool doAttempts(std::vector<SourceInfo>& server_list,
                                        server,
                                        conn_timeout,
                                        response_timeout)) {
-                    std::cout << "GOT RESPONSE" << std::endl;
                     return true;
                 } else {
                     if (i == 1 && j == 2) //final attempt and still no response

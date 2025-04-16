@@ -99,12 +99,6 @@ std::vector<SourceInfo> forwardRequest(
                         const std::vector<SourceInfo>& servers,
                         uint8_t expected_in_code,
                         uint8_t expected_ret_code) {
-    std::cout << "Forwarding" << std::endl;
-
-    std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
-    std::cout << (int)*initial_msg.begin() << std::endl;
-    std::cout << (int)expected_in_code << std::endl;
-
     //make sure first byte is expected code
     if (*initial_msg.begin() != expected_in_code)
         return servers;
@@ -115,7 +109,6 @@ std::vector<SourceInfo> forwardRequest(
             return servers;
     }else if (expected_in_code == DROP_REQUEST)
     {
-        std::cout << "DROPPING" << std::endl;
         if (EXIT_SUCCESS != createForwardDrop(initial_msg))
             return servers;
     }else if (expected_in_code == REREGISTER_REQUEST)

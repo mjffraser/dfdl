@@ -21,7 +21,6 @@ void keepClientAlive(int client_fd,
                      std::mutex& m,
                      std::condition_variable& cv) {
     while (run) {
-        std::cout << "sent." << std::endl;
         tcp::sendMessage(client_fd, {KEEP_ALIVE});
         std::unique_lock<std::mutex> lock(m);
         if (cv.wait_for(lock, std::chrono::milliseconds(1000), [&run] {return !run;}))
@@ -80,7 +79,6 @@ std::pair<int, uint16_t> selectWorker(std::vector<uint8_t>&                     
 void broadcastToServers(std::vector<uint8_t>&      client_request,
                         std::vector<SourceInfo>&   known_servers,
                         std::mutex&                known_server_mtx) {
-    std::cout << "BROADCASTING" << std::endl;
     std::vector<uint8_t> req_copy(client_request);
     switch (*req_copy.begin()) {
         //NOTE: added breaks to all cases cause was not sure if needed
@@ -281,7 +279,7 @@ void clientConnection(int                                              client_so
         if (EXIT_SUCCESS == recvWorkerMessage(worker_sock, worker_addr, worker_response)) {
             std::cout << "SENT CODE:"   << (int)*client_request.begin() << std::endl;
             if ((int)*worker_response.begin() == 0)
-                std::cout << "[ERR] " << parseFailMessage(worker_response) << std::endl;
+                std::cout << parseFailMessage(worker_response) << std::endl;
             
             //WE GOT A REPLY
             worker_strikes[worker_id] = 0;

@@ -10,8 +10,6 @@ int connectToSource(const SourceInfo connect_to,
     auto sock = openSocket(false, 0); //server, port
     if (!sock) return -1;
 
-    std::cout << "CONNECTING: " << connect_to.ip_addr << " " << connect_to.port << std::endl;
-
     if (EXIT_SUCCESS != tcp::connect(sock->first, connect_to, connection_timeout)) {
         std::cout << "timed out" << std::endl;
         closeSocket(sock->first);

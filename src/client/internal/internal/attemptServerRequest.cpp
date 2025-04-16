@@ -54,7 +54,6 @@ int attemptServerCommunication(const  SourceInfo&           server,
                           msg_code,
                           response_timeout);
 
-    std::cout << "RESPONSEBUFF " << (int)*response_buff.begin() << std::endl;
     closeSocket(sock);
     return res; //either EXIT_SUCCESS / EXIT_FAILURE
 }

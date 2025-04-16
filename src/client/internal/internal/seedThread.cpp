@@ -73,15 +73,12 @@ int initHandshake(int                                     peer_sock,
                   std::mutex&                             indexed_files_mtx,
                   struct timeval                          timeout,
                   std::filesystem::path&                  f_path) {
-    std::cout << "starting" << std::endl;
     // recieve client download init request
     std::vector<uint8_t> client_init_msg;
     if (!recvOkay(peer_sock, client_init_msg, DOWNLOAD_INIT, timeout)) {
         closeSocket(peer_sock);
         return EXIT_FAILURE;
     }
-
-    std::cout << "okay" << std::endl;
 
     //check for valid request
     auto [uuid, c_size] = parseDownloadInit(client_init_msg);
@@ -112,10 +109,8 @@ int initHandshake(int                                     peer_sock,
     std::vector<uint8_t> confirm_msg = createDownloadConfirm(f_size_opt.value(),
                                                              f_path.filename());
 
-    std::cout << "GREAT" << std::endl;
     if (sendOkay(peer_sock, confirm_msg))
         return EXIT_SUCCESS;
-    std::cout << "????" << std::endl;
     closeSocket(peer_sock);
     return EXIT_FAILURE;
 }
