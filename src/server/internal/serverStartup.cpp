@@ -14,6 +14,7 @@
 #include <vector>
 #include "networking/internal/fileParsing/fileUtil.hpp"
 #include <mutex>
+#include "client/internal/internal/internal/clientNetworking.hpp"
 
 
 
@@ -48,30 +49,57 @@ int databaseSendNS(int socket_fd) {
     std::vector<uint8_t> confirm_buff = createDownloadConfirm(f_size, "temp.db");
     tcp::sendMessage(socket_fd, confirm_buff);
 
-    while (true) {
-        std::vector<uint8_t> request;
-        if (tcp::recvMessage(socket_fd, request, timeout) <= 0) {
-            break;
+    std::vector<uint8_t> ack_buff;
+    while (recvOkay(socket_fd, ack_buff, REQUEST_CHUNK, timeout)) {
+        size_t chunk_id = parseChunkRequest(ack_buff); 
+
+        //read chunk
+        std::vector<uint8_t> chunk;
+        auto res = packageFileChunk(temp_path, chunk, chunk_id);
+        if (!res) {
+            //could not read file for some reason
+            std::vector<uint8_t> fail_msg = createFailMessage("Sorry, file appears to be unavailable.");
+            sendOkay(socket_fd, fail_msg);
+            return EXIT_FAILURE;
         }
 
-        if (*request.begin() == FINISH_DOWNLOAD)
-            break;
+        //send chunk
+        chunk.resize(res.value());
+        DataChunk dc = {chunk_id, chunk};
+        std::vector<uint8_t> chunk_msg = createDataChunk(dc);
+        double X=((double)rand()/(double)RAND_MAX);
+        if (!sendOkay(socket_fd, chunk_msg)) {
+            return EXIT_FAILURE;
+        }
 
-        if (*request.begin() != REQUEST_CHUNK)
-            break;
-
-        size_t chunk = parseChunkRequest(request);
-        std::vector<uint8_t> c_bytes;
-        auto c_data = packageFileChunk(temp_path, c_bytes, chunk);
-        if (!c_data)
-            break;
-        
-        DataChunk send_to_client = {chunk, c_bytes}; 
-        std::vector<uint8_t> message = createDataChunk(send_to_client);
-        tcp::sendMessage(socket_fd, message);
     }
 
-    deleteFile(temp_path);
+
+
+    // while (true) {
+    //     std::vector<uint8_t> request;
+    //     if (tcp::recvMessage(socket_fd, request, timeout) <= 0) {
+    //         break;
+    //     }
+
+    //     if (*request.begin() == FINISH_DOWNLOAD)
+    //         break;
+
+    //     if (*request.begin() != REQUEST_CHUNK)
+    //         break;
+
+    //     size_t chunk = parseChunkRequest(request);
+    //     std::vector<uint8_t> c_bytes;
+    //     auto c_data = packageFileChunk(temp_path, c_bytes, chunk);
+    //     if (!c_data)
+    //         break;
+        
+    //     DataChunk send_to_client = {chunk, c_bytes}; 
+    //     std::vector<uint8_t> message = createDataChunk(send_to_client);
+    //     tcp::sendMessage(socket_fd, message);
+    // }
+
+    //deleteFile(temp_path);
 
     return EXIT_SUCCESS;
 }

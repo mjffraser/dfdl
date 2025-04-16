@@ -8,6 +8,7 @@
 #include <array>
 #include <iostream>
 #include "server/internal/syncing.hpp"
+#include "server/internal/serverStartup.hpp"
 
 namespace dfd {
 
@@ -217,6 +218,13 @@ void clientConnection(int                                              client_so
         SourceInfo si = parseNewServerReg(client_request);
         client.ip_addr = si.ip_addr;
         client.port    = si.port;
+    }
+
+    if (*client_request.begin() == DOWNLOAD_INIT) {
+        databaseSendNS(client_sock);
+
+        closeSocket(client_sock);
+        return;
     }
     
     //open udp sock to talk to worker
