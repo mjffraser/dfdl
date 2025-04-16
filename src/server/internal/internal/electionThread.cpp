@@ -3,6 +3,8 @@
 #include "networking/socket.hpp"
 
 #include <array>
+#include <iostream>
+#include <ostream>
 #include <thread>
 
 namespace dfd {
@@ -11,7 +13,7 @@ void electionThread(std::atomic<bool>&                             server_runnin
                     int                                            thread_ind,
                     std::pair<int, uint16_t>                       my_addr,
                     std::atomic<bool>&                             call_election,
-                    uint16_t&                                      requester_port,
+                    std::atomic<uint16_t>&                         requester_port,
                     std::array<std::atomic<bool>, WORKER_THREADS>& worker_stats,
                     std::array<uint16_t, WORKER_THREADS-1>&        election_listeners,
                     std::atomic<int>&                              setup_workers,
@@ -44,6 +46,7 @@ void electionThread(std::atomic<bool>&                             server_runnin
     bool in_election = false;
     while (server_running && worker_stats[thread_ind]) {
         if (call_election || in_election) {
+            std::cout << "ENTER ELECTION" << std::endl;
             in_election   = true;
             call_election = false;
             while (in_election) {
@@ -61,6 +64,8 @@ void electionThread(std::atomic<bool>&                             server_runnin
                     in_election = false;
                     SourceInfo asker; asker.ip_addr = "127.0.0.1"; asker.port = requester_port;
                     udp::sendMessage(listener, asker, {LEADER_X, (uint8_t)thread_ind});
+                    std::cout << "I AM LEADER: " << thread_ind << std::endl;
+                    std::cout << "TO: " << requester_port << std::endl;
                 } else if (res == EXIT_SUCCESS) {
                     //if we got a message
                     if (*response.begin() == BULLY) { //we're being bullied, so we end our leader contention
