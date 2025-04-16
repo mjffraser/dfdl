@@ -46,7 +46,6 @@ void electionThread(std::atomic<bool>&                             server_runnin
     bool in_election = false;
     while (server_running && worker_stats[thread_ind]) {
         if (call_election || in_election) {
-            std::cout << "ENTER ELECTION" << std::endl;
             in_election   = true;
             call_election = false;
             while (in_election) {
@@ -65,7 +64,6 @@ void electionThread(std::atomic<bool>&                             server_runnin
                     SourceInfo asker; asker.ip_addr = "127.0.0.1"; asker.port = requester_port;
                     udp::sendMessage(listener, asker, {LEADER_X, (uint8_t)thread_ind});
                     std::cout << "I AM LEADER: " << thread_ind << std::endl;
-                    std::cout << "TO: " << requester_port << std::endl;
                 } else if (res == EXIT_SUCCESS) {
                     //if we got a message
                     if (*response.begin() == BULLY) { //we're being bullied, so we end our leader contention

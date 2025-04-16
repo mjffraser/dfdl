@@ -11,7 +11,6 @@ int connectToSource(const SourceInfo connect_to,
     if (!sock) return -1;
 
     if (EXIT_SUCCESS != tcp::connect(sock->first, connect_to, connection_timeout)) {
-        std::cout << "timed out" << std::endl;
         closeSocket(sock->first);
         return -1;
     }

@@ -284,7 +284,6 @@ int Database::grabSources(const uint64_t&          uuid,
                                {select_constraint},
                                &peer_row);
 
-            std::cout << "?" << std::endl;
             if (err_val)
                 return reportError(err_val.value());
 

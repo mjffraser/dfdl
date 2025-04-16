@@ -302,7 +302,6 @@ void workerThread(std::atomic<bool>&                             server_running,
                 //signal to election 
                 election_requester = msg_src.port;
                 call_election = true;
-                std::cout << msg_src.port << "<== PORT" << std::endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
                 continue;
             } else if (*client_request.begin() == ELECT_X ||
@@ -342,7 +341,6 @@ void workerThread(std::atomic<bool>&                             server_running,
 
                 //SYNCING STUFF
                 case SERVER_REG: {
-                    std::cout << "SERVER_REG" << std::endl;
                     serverToServerRegistration(client_request, response, known_servers, knowns_mtx, db, record_msgs);
                     break;
                 }

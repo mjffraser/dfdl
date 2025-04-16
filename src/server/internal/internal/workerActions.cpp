@@ -57,15 +57,12 @@ void clientSourceRequest(const std::vector<uint8_t>& client_request,
                                std::vector<uint8_t>& response_dest,
                                Database*             db) {
 
-    std::cout << "we have the uuid" << std::endl;
     uint64_t f_uuid = parseSourceRequest(client_request);
     if (f_uuid == 0) {
         response_dest = createFailMessage("Invalid file uuid provided.");
         return;
     }
 
-    std::cout << "we have the uuid" << f_uuid << std::endl;
-    
     std::vector<SourceInfo> indexers;
     if (EXIT_SUCCESS != db->grabSources(f_uuid, indexers))
         response_dest = createFailMessage(db->sqliteError());

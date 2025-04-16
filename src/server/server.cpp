@@ -156,6 +156,7 @@ void run_server(const std::string& ip,
             workers[i].join();
             setup_workers--;
             setup_election_workers--;
+            std::cout << "RESTARTING THREAD: " << i << std::endl;
             workers[i] = std::thread(workerThread,
                                      std::ref(server_running),
                                      i,

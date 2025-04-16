@@ -360,12 +360,11 @@ int doDownload(const uint64_t                 f_uuid,
         for (auto& w : workers) w.join();
 
         for(SourceInfo& faulty_client : bad_peers ) {
+            std::cout << faulty_client.ip_addr << " " << faulty_client.port << std::endl; 
             if (!doAttempts(server_list,
                             attemptControl,
                             f_uuid,
                             faulty_client)) {
-                std::cerr << "[err] Sorry, tried all known servers twice, and received no response from any." << std::endl;
-                std::cerr << "[err] Could not communicate bad peer list to servers." << std::endl;
                 return EXIT_FAILURE;
             }
         }
