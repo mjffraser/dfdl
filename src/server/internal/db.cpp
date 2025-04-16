@@ -278,7 +278,6 @@ int Database::grabSources(const uint64_t&          uuid,
             std::vector<Row> peer_row;
             SourceInfo s;
             select_constraint = PEER_KEY.first + "=" + r[0]; //id=[id selected above]
-            std::cout << "?" << std::endl;
             err_val = doSelect(db,
                                PEER_NAME,
                                to_select,

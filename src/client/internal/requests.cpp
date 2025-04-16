@@ -6,6 +6,7 @@
 #include "networking/messageFormatting.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <condition_variable>
 #include <filesystem>
 #include <iostream>
@@ -321,6 +322,17 @@ int doDownload(const uint64_t                 f_uuid,
 
         //construct chunks
         while (true) {
+            std::stringstream download_stream; 
+            download_stream << "[";
+            double chunk_percentage = (double)chunks_written / (double)f_chunks;
+            double thresh = 80 * chunk_percentage;
+            for (int i = 0; i < 80; i++) {
+                if (i < thresh) download_stream << "#";
+                else download_stream << "-";
+            }
+            download_stream << "] " << (std::floor(chunk_percentage*100)) << "%\r";
+            std::cout << download_stream.str() << std::flush;
+
             std::unique_lock<std::mutex> dc_lock(done_chunks_mtx);
             bool notified = chunk_ready.wait_for(dc_lock, std::chrono::seconds(10), [&] {
                 return !done_chunks.empty();
@@ -357,6 +369,9 @@ int doDownload(const uint64_t                 f_uuid,
             assembleChunk(file_out.get(), f_name, c);
             chunks_written++;
         }
+
+        std::cout << "[################################################################################] 100%";
+        std::cout << std::endl;
 
         if (chunks_written != f_chunks-1) { //0th is already written
             std::cerr << "[err] Some chunks were corrupted and no peers remain to re-request from. Sorry." << std::endl;

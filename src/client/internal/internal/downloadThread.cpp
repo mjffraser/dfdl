@@ -184,7 +184,7 @@ void downloadThread(const uint64_t                 f_uuid,
         //chunk request loop, while chunks are in the queue we:
         size_t chunk_index;
         while ((chunk_index = getNextChunk(remaining_chunks, remaining_chunks_mtx)) != 0) {
-            std::cout << "next:" << chunk_index << " from " << selected_peer.port << std::endl; 
+            // std::cout << "next:" << chunk_index << " from " << selected_peer.port << std::endl; 
             if (EXIT_SUCCESS != downloadChunk(sock,
                                               chunk_index,
                                               f_name,
