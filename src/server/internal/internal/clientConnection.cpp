@@ -1,4 +1,5 @@
 #include "server/internal/internal/clientConnection.hpp"
+#include "networking/fileParsing.hpp"
 #include "config.hpp"
 #include "networking/messageFormatting.hpp"
 #include "networking/socket.hpp"
@@ -218,6 +219,13 @@ void clientConnection(int                                              client_so
         SourceInfo si = parseNewServerReg(client_request);
         client.ip_addr = si.ip_addr;
         client.port    = si.port;
+    }
+
+    if (*client_request.begin() == MIGRATE_OK) {
+        std::string path = "temp.db";
+        deleteFile(path);
+        closeSocket(client_sock);
+        return;
     }
 
     if (*client_request.begin() == DOWNLOAD_INIT) {

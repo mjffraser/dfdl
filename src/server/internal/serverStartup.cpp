@@ -349,10 +349,21 @@ void joinNetwork(const SourceInfo&           known_server,
     if (EXIT_SUCCESS == databaseReciveNS(known_server)) {
         //merge file and current db
         if (EXIT_SUCCESS != db->mergeDatabases("temp.db")) {
-            std::cerr << "db recive merge fail\n";
+            std::cerr << "[ERR] db recive merge fail" << std::endl;
         }
 
-        //deleteFile("temp.db");
+        std::string path = "temp.db";
+        deleteFile(path);
+    }
+
+    // send ack to target server after db merge.
+    int sock = connectToSource(known_server, timeout); 
+    if (sock < 0) {
+        std::cerr << "[ERR] Failed to connect to target server for migration ack." << std::endl;
+        return;
+    }
+    if (!sendOkay(sock, {MIGRATE_OK})) {
+        std::cerr << "[ERR] Failed to send db ack." << std::endl;
     }
 }
 
