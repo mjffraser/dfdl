@@ -85,6 +85,45 @@ int attemptDrop(const  IndexUuidPair& file,
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * attemptControl
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Attempts to connect to a server, submit a control request, and parse the
+ *    response. If successful, communicates the bad peer list to the server.
+ *    If the server doesn't connect fast enough, or respond fast
+ *    enough, returns with an error.
+ *
+ * Takes:
+ * -> file_uuid:
+ *    The uuid of the file that does not work.
+ * -> indexed_files:
+ *    The vector to remove this entry from for external use.
+ * -> faulty_client:
+ *    The bad peer that is not responding.
+ * -> server:
+ *    The server to attempt to connect to. If either the IP or port aren't
+ *    present, returns with an error.
+ * -> connection_timeout:
+ *    The timeout for how long to wait while connecting to the server.
+ * -> response_timeout:
+ *    The timeout for how long to wait after connecting to the server whilst
+ *    waiting for a reply.
+ *
+ * Returns:
+ * -> On success:
+ *    EXIT_SUCCESS
+ * -> On failure:
+ *    EXIT_FAILURE
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+int attemptControl(const  uint64_t file_uuid,
+                const  SourceInfo&    faulty_client,
+                const  SourceInfo&    server,
+                struct timeval        connection_timeout,
+                struct timeval        response_timeout);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * attemptSourceRetrieval
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
@@ -96,7 +135,7 @@ int attemptDrop(const  IndexUuidPair& file,
  *
  * Takes:
  * -> file_uuid:
- *    The UUID of the file to get the source list for. 
+ *    The UUID of the file to get the source list for.
  * -> dest:
  *    The vector to store the retrieved source list inside of. This vector is
  *    cleared during this process.

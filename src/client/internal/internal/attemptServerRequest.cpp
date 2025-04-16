@@ -91,12 +91,30 @@ int attemptDrop(const  IndexUuidPair& file,
                                       response_timeout);
 }
 
+int attemptControl(const  uint64_t file_uuid,
+                const  SourceInfo&    faulty_client,
+                const  SourceInfo&    server,
+                struct timeval        connection_timeout,
+                struct timeval        response_timeout){
+
+    std::vector<uint8_t> control_request = createControlRequest(faulty_client, file_uuid);
+    std::vector<uint8_t> server_response;
+    if (control_request.empty()) return EXIT_FAILURE;
+
+    return attemptServerCommunication(server,
+                                      control_request,
+                                      server_response,
+                                      CONTROL_OK,
+                                      connection_timeout,
+                                      response_timeout);
+}
+
 int attemptSourceRetrieval(const uint64_t           file_uuid,
                            std::vector<SourceInfo>& dest,
                            const  SourceInfo&       server,
                            struct timeval           connection_timeout,
                            struct timeval           response_timeout) {
-    dest.clear(); 
+    dest.clear();
     std::vector<uint8_t> source_request = createSourceRequest(file_uuid);
     std::vector<uint8_t> server_response;
     if (source_request.empty()) return EXIT_FAILURE;
@@ -121,7 +139,7 @@ int attemptServerUpdate(std::vector<SourceInfo>& dest,
                         struct timeval           response_timeout) {
     dest.clear();
     std::vector<uint8_t> server_response;
-    
+
     if (EXIT_FAILURE == attemptServerCommunication(server,
                                                    {CLIENT_REG},
                                                    server_response,

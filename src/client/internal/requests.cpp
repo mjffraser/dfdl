@@ -4,6 +4,7 @@
 #include "client/internal/internal/downloadThread.hpp"
 #include "networking/fileParsing.hpp"
 #include "networking/messageFormatting.hpp"
+#include "sourceInfo.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -322,7 +323,7 @@ int doDownload(const uint64_t                 f_uuid,
 
         //construct chunks
         while (true) {
-            std::stringstream download_stream; 
+            std::stringstream download_stream;
             download_stream << "[";
             double chunk_percentage = (double)chunks_written / (double)f_chunks;
             double thresh = 80 * chunk_percentage;
@@ -358,6 +359,18 @@ int doDownload(const uint64_t                 f_uuid,
 
         //join all threads and clean up
         for (auto& w : workers) w.join();
+
+        for(SourceInfo& faulty_client : bad_peers ) {
+            if (!doAttempts(server_list,
+                            attemptControl,
+                            f_uuid,
+                            faulty_client)) {
+                std::cerr << "[err] Sorry, tried all known servers twice, and received no response from any." << std::endl;
+                std::cerr << "[err] Could not communicate bad peer list to servers." << std::endl;
+                return EXIT_FAILURE;
+            }
+        }
+
         if (timed_out) {
             std::cerr << "[err] All peers have dropped out mid-download. Cannot continue, sorry." << std::endl;
             return EXIT_FAILURE;
