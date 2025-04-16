@@ -73,6 +73,7 @@ void run_server(const std::string& ip,
     std::mutex election_mtx;
 
     std::atomic<bool> server_running = true;
+    std::atomic<uint16_t> election_requester = 0;
     ///////////////////////////////////////////////////////////////////////////
     //STEP 1: STARTUP WORKER THREADS AND CONTROL THREAD
     for (int i = 0; i < WORKER_THREADS; ++i) {
@@ -98,7 +99,8 @@ void run_server(const std::string& ip,
                                  std::ref(control_q),
                                  std::ref(control_cv),
                                  std::ref(control_mtx),
-                                 std::ref(record_msgs)); 
+                                 std::ref(record_msgs), 
+                                 std::ref(election_requester)); 
     }
 
     std::thread control_thread(controlMsgThread,
@@ -171,7 +173,8 @@ void run_server(const std::string& ip,
                                      std::ref(control_q),
                                      std::ref(control_cv),
                                      std::ref(control_mtx),
-                                     std::ref(record_msgs)); 
+                                     std::ref(record_msgs), 
+                                     std::ref(election_requester)); 
         }
     }
 

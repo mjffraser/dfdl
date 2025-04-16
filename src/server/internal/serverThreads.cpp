@@ -216,7 +216,8 @@ void workerThread(std::atomic<bool>&                             server_running,
                   std::queue<std::pair<SourceInfo, uint64_t>>&   control_q,
                   std::condition_variable&                       control_cv,
                   std::mutex&                                    control_mtx,
-                  std::atomic<bool>&                             record_msgs) {
+                  std::atomic<bool>&                             record_msgs,
+                  std::atomic<uint16_t>&                         election_requester) {
     try {
         ///////////////////////////////////////////////////////////////////////
         //SETUP PROCESS
@@ -230,7 +231,6 @@ void workerThread(std::atomic<bool>&                             server_running,
        
         //open election thread
         SourceInfo election_addr; election_addr.ip_addr = "127.0.0.1";
-        uint16_t requester_port = 0; //election thread can access this address for the requesters port
         election_addr.port = election_listener.value().second;
         std::thread election_thread;
         std::atomic<bool> call_election = false;
@@ -240,7 +240,7 @@ void workerThread(std::atomic<bool>&                             server_running,
                                           thread_ind,
                                           election_listener.value(),
                                           std::ref(call_election),
-                                          std::ref(requester_port),
+                                          std::ref(election_requester),
                                           std::ref(worker_stats),
                                           std::ref(election_listeners),
                                           std::ref(setup_workers),
@@ -272,6 +272,9 @@ void workerThread(std::atomic<bool>&                             server_running,
         struct timeval timeout;
         timeout.tv_sec  = 0;
         timeout.tv_usec = 50000;
+
+        size_t writes_served = 0;
+
         ///////////////////////////////////////////////////////////////////////
         //MAIN LOOP
         while ((server_running && worker_stats[thread_ind] == true) ||
@@ -283,11 +286,12 @@ void workerThread(std::atomic<bool>&                             server_running,
                 //if i've been moved to write status
                 thread_ind = WORKER_THREADS-1;
 
+            if (writes_served > 2) return; //manually trigger leader election
+
             SourceInfo msg_src;
             std::vector<std::uint8_t> client_request;
             int res = udp::recvMessage(my_socket, msg_src, client_request, timeout);
             call_election  = false;
-            requester_port = 0;
 
             //no message
             if (res == EXIT_FAILURE)
@@ -296,8 +300,9 @@ void workerThread(std::atomic<bool>&                             server_running,
             //if I need to call election
             if (*client_request.begin() == ELECT_LEADER) {
                 //signal to election 
-                requester_port = msg_src.port;
+                election_requester = msg_src.port;
                 call_election = true;
+                std::cout << msg_src.port << "<== PORT" << std::endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
                 continue;
             } else if (*client_request.begin() == ELECT_X ||
@@ -312,18 +317,21 @@ void workerThread(std::atomic<bool>&                             server_running,
                 case INDEX_REQUEST: 
                 case INDEX_FORWARD: {
                     clientIndexRequest(client_request, response, db);
+                    writes_served++;
                     break;
                 }
 
                 case DROP_REQUEST:
                 case DROP_FORWARD: {
                     clientDropRequest(client_request, response, db);
+                    writes_served++;
                     break;
                 }
 
                 case REREGISTER_REQUEST: 
                 case REREGISTER_FORWARD: {
                     clientReregisterRequest(client_request, response, db);
+                    writes_served++;
                     break;
                 }
 
@@ -377,6 +385,7 @@ void workerThread(std::atomic<bool>&                             server_running,
                 }
             }
 
+            if (writer) std::cout << "WRITES PERFORMED: " << writes_served << std::endl;
             udp::sendMessage(my_socket, msg_src, response);
         }
     } catch (...) {
