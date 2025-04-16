@@ -29,10 +29,76 @@ namespace dfd {
 //note: all of this is from old server and likely needs adaption
 ////////////////////////////////////////////////////////////
 
+int migrationHandshake(const SourceInfo&           server,
+                             std::vector<uint8_t>& response_buff,
+                             uint64_t&             f_size,
+                             struct timeval        timeout) {
+
+    int sock = connectToSource(server, timeout); 
+    if (sock < 0) {
+        std::cerr << "[ERR] Failed to connect to target server for db migration." << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    int res = sendAndRecv(sock,
+                          {DOWNLOAD_INIT},
+                          response_buff,
+                          DOWNLOAD_CONFIRM,
+                          timeout);
+    if (res == EXIT_FAILURE) {
+        std::cerr << "[ERR] Failed to send/recv handshake for db migration." << std::endl;
+        closeSocket(sock);
+        return EXIT_FAILURE;
+    }
+
+    auto [size, name] = parseDownloadConfirm(response_buff);
+    if (size == 0 || name != "temp.db") {
+        std::cerr << "[ERR] Failed to parseDownloadConfirm for db migration." << std::endl;
+        closeSocket(sock);
+        return EXIT_FAILURE;
+    }
+    f_size = size;
+
+    return sock;
+}
+
+int downloadDBChunk(int                sock,
+                    const size_t       chunk_index,
+                    const std::string& f_name,
+                    struct timeval     response_timeout) {
+    //Try to receive chunk
+    std::vector<uint8_t> chunk_req = createChunkRequest(chunk_index);
+    std::vector<uint8_t> chunk_data;
+    if (EXIT_FAILURE == sendAndRecv(sock,
+                                    chunk_req,
+                                    chunk_data,
+                                    DATA_CHUNK,
+                                    response_timeout)) {
+        std::cerr << "[ERR] Failed to send/recv FileChunk for db migration." << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    //store received datachunk
+    DataChunk dc = parseDataChunk(chunk_data);
+    if (dc.first == SIZE_MAX) {
+        std::cerr << "[ERR] Failed to parse FileChunk at db migration." << std::endl; 
+        return EXIT_FAILURE;
+    }
+
+    if (EXIT_FAILURE == unpackFileChunk(f_name,
+                                        dc.second,
+                                        dc.second.size(),
+                                        dc.first)) {
+        std::cerr << "[ERR] Failed to unpack FileChunk at db migration." << std::endl;                                    
+        return EXIT_FAILURE;
+        }
+
+    return EXIT_SUCCESS;
+}
 
 //sends database backup to the new server
 int databaseSendNS(int socket_fd) {
-    timeval timeout;
+    struct timeval timeout;
     timeout.tv_sec = 5;
     timeout.tv_usec = 5;
 
@@ -74,103 +140,77 @@ int databaseSendNS(int socket_fd) {
 
     }
 
-
-
-    // while (true) {
-    //     std::vector<uint8_t> request;
-    //     if (tcp::recvMessage(socket_fd, request, timeout) <= 0) {
-    //         break;
-    //     }
-
-    //     if (*request.begin() == FINISH_DOWNLOAD)
-    //         break;
-
-    //     if (*request.begin() != REQUEST_CHUNK)
-    //         break;
-
-    //     size_t chunk = parseChunkRequest(request);
-    //     std::vector<uint8_t> c_bytes;
-    //     auto c_data = packageFileChunk(temp_path, c_bytes, chunk);
-    //     if (!c_data)
-    //         break;
-        
-    //     DataChunk send_to_client = {chunk, c_bytes}; 
-    //     std::vector<uint8_t> message = createDataChunk(send_to_client);
-    //     tcp::sendMessage(socket_fd, message);
-    // }
-
-    //deleteFile(temp_path);
-
     return EXIT_SUCCESS;
 }
 //called by new server to receive and merge database
-int databaseReciveNS(int socket_fd, Database* db) {
+int databaseReciveNS(const SourceInfo& server) {
     setDownloadDir(std::filesystem::current_path());
+    std::unique_ptr<std::ofstream> file_out = nullptr;
 
-    //set the buffer and timeout
-    std::vector<uint8_t> buffer;
-    timeval timeout;
+    struct timeval timeout;
     timeout.tv_sec = 5;
     timeout.tv_usec = 5;
 
-    //recive data and EC
-    if (tcp::recvMessage(socket_fd, buffer, timeout) <= 0) {
-        std::cerr << "Server did not init server download.\n";
+    std::vector<uint8_t> response_buff;
+    uint64_t f_size;
+    std::string f_name = "temp.db";
+
+    // handshake
+    int sock = migrationHandshake(server, response_buff, f_size, timeout);
+    if (sock == EXIT_FAILURE) {
+        std::cerr << "[ERR] Initial db migration handshake failed." << std::endl;
         return EXIT_FAILURE;
     }
 
-    if (*buffer.begin() != DOWNLOAD_CONFIRM) {
-        std::cerr << "Server sent rouge reply." << std::endl;
+    // download & unpack first chunk
+    if (EXIT_FAILURE == downloadDBChunk(sock, 0, f_name, timeout)) {
+        std::cerr << "[ERR] Failed to download first FileChunk." << std::endl;
+        closeSocket(sock);
         return EXIT_FAILURE;
     }
 
-    std::pair<uint64_t, std::string> confirm_fields = parseDownloadConfirm(buffer);
+    sendOkay(sock, {FINISH_DOWNLOAD});
+    closeSocket(sock);
 
-    //temp to store imported db
-    const std::string temp_path = confirm_fields.second;
-
-    auto chunks_op = fileChunks(confirm_fields.first);
-    if (!chunks_op) {
-        std::cerr << "bad chunks" << std::endl;
+    file_out = openFile(f_name);
+    if (file_out == nullptr){
+        std::cerr << "[ERR] Failed to open file at db migration." << std::endl;
         return EXIT_FAILURE;
     }
 
-    std::unique_ptr<std::ofstream> file;
-    //write buffer to the tempfile
-    for (size_t i = 0; i < chunks_op.value(); ++i) {
-        std::cout << "requesting " << i << std::endl;
-        std::vector<uint8_t> chunk_buff;
-        std::vector<uint8_t> chunk_req = createChunkRequest(i);
-        tcp::sendMessage(socket_fd, chunk_req);
-        if (tcp::recvMessage(socket_fd, chunk_buff, timeout) <= 0) {
-            std::cerr << "bad chunk download" << std::endl;
+
+    auto chunks_in_file_opt = fileChunks(f_size);
+    if (!chunks_in_file_opt) {
+        std::cerr << "[ERR] Received erroneous file size at db migration." << std::endl;
+        return EXIT_FAILURE;
+    }
+    // download remaining file chunks
+    size_t f_chunks = chunks_in_file_opt.value();
+    if (f_chunks > 1) {
+        std::vector<uint8_t> response_buff1;
+        int sock1 = migrationHandshake(server, response_buff1, f_size, timeout);
+        if (sock1 == EXIT_FAILURE) {
+            std::cerr << "[ERR] download db migration handshake failed." << std::endl;
             return EXIT_FAILURE;
         }
-
-        DataChunk chunk = parseDataChunk(chunk_buff);
-        unpackFileChunk(temp_path, chunk.second, chunk.second.size(), i);
-        std::cout << chunk.second.size() << std::endl;
-        if (i == 0) {
-            file = openFile(temp_path);
-        } else {
-            assembleChunk(file.get(), temp_path, i); 
+        
+        for (size_t i = 1; i < f_chunks; ++i){
+            if (EXIT_FAILURE == downloadDBChunk(sock, i, f_name, timeout)) {
+                std::cerr << "[ERR] Failed to download remaining FileChunks." << std::endl;
+                closeSocket(sock);
+                return EXIT_FAILURE;
+            }
+            assembleChunk(file_out.get(), f_name, i);
         }
+        sendOkay(sock1, {FINISH_DOWNLOAD});
+        closeSocket(sock1);
     }
+    saveFile(std::move(file_out));
+    std::cout << "db downloaded." << std::endl;
 
-    tcp::sendMessage(socket_fd, {FINISH_DOWNLOAD});
-    saveFile(std::move(file));
-
-    //merge file and current db
-    if (EXIT_SUCCESS != db->mergeDatabases(temp_path)) {
-        std::cerr << "db recive merge fail\n";
-        return EXIT_FAILURE;
-    }
-
-    deleteFile(temp_path);
-
-    //exit success
     return EXIT_SUCCESS;
 }
+
 //send a backup of write req
 void massWriteSend(SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_queue) {
     //check empty
@@ -240,7 +280,7 @@ void massWriteSend(SourceInfo& new_server, std::queue<std::vector<uint8_t>> msg_
 
 
 void joinNetwork(const SourceInfo&           known_server,
-                    Database*                open_db,
+                    Database*                db,
                     std::vector<SourceInfo>& known_servers,
                     std::mutex&              knowns_mtx,
                     SourceInfo               our_server) {
@@ -304,6 +344,15 @@ void joinNetwork(const SourceInfo&           known_server,
 
         //close socket
         closeSocket(client_sock);
+    }
+
+    if (EXIT_SUCCESS == databaseReciveNS(known_server)) {
+        //merge file and current db
+        if (EXIT_SUCCESS != db->mergeDatabases("temp.db")) {
+            std::cerr << "db recive merge fail\n";
+        }
+
+        //deleteFile("temp.db");
     }
 }
 

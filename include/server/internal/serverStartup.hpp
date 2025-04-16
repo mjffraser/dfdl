@@ -19,16 +19,14 @@ namespace dfd {
  *    database from another server.
  *
  * Takes:
- * -> socket_fd:
- *    the connected socket to the sending server
- * -> db:
- *    a pointer to the database
+ * -> server:
+ *    A SourceInfo object for a known server.
  *
  * Returns:
  * -> EXIT_SUCCESS on success, EXIT_FAILURE on eror
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int databaseReciveNS(int socket_fd, Database* db);
+int databaseReciveNS(const SourceInfo& server);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

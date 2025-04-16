@@ -129,12 +129,15 @@ void clientSourceRequest(const std::vector<uint8_t>& client_request,
  *    requesting client.
  * -> known_servers:
  *    A pointer to the known servers vector to modify.
+ * -> db:
+ *    A database pointer
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 void serverToServerRegistration(std::vector<uint8_t>&      client_request,
                                 std::vector<uint8_t>&    response_dest,
                                 std::vector<SourceInfo>& known_servers,
-                                std::mutex&              knowns_mtx);
+                                std::mutex&              knowns_mtx,
+                                Database*                       db);
 
 } //dfd

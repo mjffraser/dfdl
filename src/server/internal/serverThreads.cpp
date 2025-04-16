@@ -328,7 +328,7 @@ void workerThread(std::atomic<bool>&                             server_running,
                 //SYNCING STUFF
                 case SERVER_REG: {
                     std::cout << "SERVER_REG" << std::endl;
-                    serverToServerRegistration(client_request, response, known_servers, knowns_mtx);
+                    serverToServerRegistration(client_request, response, known_servers, knowns_mtx, db);
                     break;
                 }
 
