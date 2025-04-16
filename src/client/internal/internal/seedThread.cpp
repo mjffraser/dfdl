@@ -157,8 +157,8 @@ void seedToPeer(std::atomic<bool>&                     shutdown,
         chunk.resize(res.value());
         DataChunk dc = {chunk_id, chunk};
         std::vector<uint8_t> chunk_msg = createDataChunk(dc);
-        double X=((double)rand()/(double)RAND_MAX);
-        std::this_thread::sleep_for(std::chrono::duration<double>(X)); //ARTIFICIAL DELAYS
+        // double X=((double)rand()/(double)RAND_MAX);
+        // std::this_thread::sleep_for(std::chrono::duration<double>(X)); //ARTIFICIAL DELAYS
         if (!sendOkay(peer_sock, chunk_msg)) break;
     }
 
