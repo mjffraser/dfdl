@@ -14,10 +14,19 @@ set(LIB_SRC
 
 #all server src files
 set(SERVER_SRC
-    src/server/internal/database/db.cpp
-    src/server/internal/database/internal/queries.cpp
-    src/server/internal/syncing.cpp
     src/server/server.cpp
+
+    #server internals
+    src/server/internal/db.cpp
+    src/server/internal/serverStartup.cpp
+    src/server/internal/syncing.cpp
+    src/server/internal/serverThreads.cpp
+
+    #further internals
+    src/server/internal/internal/databaseQueries.cpp
+    src/server/internal/internal/electionThread.cpp
+    src/server/internal/internal/workerActions.cpp
+    src/server/internal/internal/clientConnection.cpp
 )
 
 #all networking & API src files
@@ -33,6 +42,22 @@ set(NETWORKING_SRC
 
 set(CLIENT_SRC
     src/client/client.cpp
+
+    #client internals
+    src/client/internal/requests.cpp
+    src/client/internal/clientThreads.cpp
+    src/client/internal/clientConfigs.cpp
+
+    #nested threads and util
+    src/client/internal/internal/attemptServerRequest.cpp
+    src/client/internal/internal/attemptPeerRequest.cpp
+    src/client/internal/internal/seedThread.cpp
+    src/client/internal/internal/downloadThread.cpp
+
+    #lowest level util
+    src/client/internal/internal/internal/clientNetworking.cpp
+    src/client/internal/internal/internal/downloadHandshake.cpp
+    
 )
 
 set(ALL_SRC

@@ -5,7 +5,7 @@
 #include <vector>
 #include <sqlite3.h>
 
-#include "types.hpp"
+#include "server/internal/internal/databaseTypes.hpp"
 
 namespace dfd {
 

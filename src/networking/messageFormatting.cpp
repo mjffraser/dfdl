@@ -52,7 +52,7 @@ void createNetworkData(uint8_t* dest, const T data, size_t& offset, int& err_cod
     }
 }
 
-std::vector<uint8_t> createIndexRequest(FileId& file_info) {
+std::vector<uint8_t> createIndexRequest(const FileId& file_info) {
     uint32_t ip_bytes = getIpBytes(file_info.indexer.ip_addr);
     if (ip_bytes == 0) 
         return {};
@@ -117,7 +117,7 @@ FileId parseIndexRequest(const std::vector<uint8_t>& index_message) {
     return f_id;
 }
 
-std::vector<uint8_t> createDropRequest(IndexUuidPair& uuids) {
+std::vector<uint8_t> createDropRequest(const IndexUuidPair& uuids) {
     if (uuids.first == 0 || uuids.second == 0)
         return {};
 
@@ -320,7 +320,6 @@ std::pair<uint64_t, SourceInfo> parseControlRequest(const std::vector<uint8_t>& 
 
     if (err_code != 0)
         si.port = 0;
-        file_id = 0;
 
     std::pair<uint64_t, SourceInfo> pair(file_id, si);
     return pair;

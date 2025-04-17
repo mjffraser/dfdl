@@ -43,6 +43,10 @@ int setDownloadDir(const std::filesystem::path& f_path) {
     return EXIT_SUCCESS;
 }
 
+std::filesystem::path getDownloadDir() {
+    return download_path;
+}
+
 void setChunkSize(const size_t size) {
     if (size != 0)
         chunk_size = size;

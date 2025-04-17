@@ -12,7 +12,7 @@ static uint16_t port = 0;
 //client-specific
 static std::string download_dir = "";
 static uint64_t    my_uuid      = 0;
-static std::string ip_addr;
+static std::string ip_addr = "";
 static std::string listen_addr;
 
 //server-specific
@@ -25,8 +25,14 @@ bool isServer(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         //shared options
         try {
-            if (std::string(argv[i]) == "--port") 
+            if (std::string(argv[i]) == "--port")
                 if (i+1 < argc) port = std::stoi(argv[i+1]);
+
+            //listen addr
+            if (std::string(argv[i]) == "--listen") {
+                if (i+1 < argc)                 listen_addr = argv[i+1];
+                if (listen_addr == "localhost") listen_addr = "127.0.0.1";
+            }
         } catch (...) {
             std::cerr << "USAGE: --port <#>" << std::endl;
             exit(-1);
@@ -36,7 +42,7 @@ bool isServer(int argc, char **argv) {
         if (std::string(argv[i]) == "--server") {
             is_server = true;
         }
-        
+
         if (std::string(argv[i]) == "--connect") {
             try {
                 if (i+2 < argc) {
@@ -63,16 +69,6 @@ bool isServer(int argc, char **argv) {
             if (i+1 < argc)             ip_addr = argv[i+1];
             if (ip_addr == "localhost") ip_addr = "127.0.0.1";
         }
-        
-        //client uuid
-        try {
-            if (std::string(argv[i]) == "--uuid")
-                if (i+1 < argc) 
-                    my_uuid = std::stoull(argv[i+1]);
-        } catch (...) {
-            std::cerr << "USAGE: --uuid <#>";
-            exit(-1);
-        }
 
         //download dir
         if (std::string(argv[i]) == "--download") {
@@ -80,11 +76,7 @@ bool isServer(int argc, char **argv) {
                 download_dir = argv[i+1];
         }
 
-        //listen addr
-        if (std::string(argv[i]) == "--listen") {
-            if (i+1 < argc)                 listen_addr = argv[i+1];
-            if (listen_addr == "localhost") listen_addr = "127.0.0.1";
-        }
+        
     }
 
     //check what we got
@@ -99,31 +91,26 @@ bool isServer(int argc, char **argv) {
     }
 
     //server needs port to open on, client needs server port to connect to
-    if (port == 0) {
+    if (port == 0 && is_server) {
         std::cerr << "Missing port!" << std::endl;
         exit(-1);
-    } 
+    }
 
-    if (!(port < 65535 && port > 1023)) {
+    if (is_server && !(port < 65535 && port > 1023)) {
         std::cerr << "Port must be between 1024 & 65535 inclusive." << std::endl;
         exit(-1);
     }
 
-    if (is_client) {
-        //client needs a server ip
-        if (ip_addr.length() == 0) {
-            std::cerr << "Missing server IP!" << std::endl;
-            exit(-1);
-        }
-        
-        //client needs a uuid TODO: move to file?
-        if (my_uuid == 0) {
-            std::cerr << "Please supply a uuid!" << std::endl;
-            exit(-1);
-        }
+    if (listen_addr.length() == 0) {
+        std::cerr << "Missing listen IP!" << std::endl;
+        exit(-1);
+    }
 
-        if (listen_addr.length() == 0) {
-            std::cerr << "Missing listen IP!" << std::endl;
+    if (is_client) {
+        
+
+        if (port != 0 && !(port < 65535 && port > 1023)){
+            std::cerr << "Port must be between 1024 & 65535 inclusive." << std::endl;
             exit(-1);
         }
     }
@@ -136,7 +123,7 @@ bool isServer(int argc, char **argv) {
  * main
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Description:
- * -> Main distributed file downloading software. 
+ * -> Main distributed file downloading software.
  *
  * Takes:
  * -> argc:
@@ -153,15 +140,11 @@ bool isServer(int argc, char **argv) {
 int main(int argc, char** argv) {
     bool server = isServer(argc, argv); //doubles as arg parsing
     if (server) {
-        dfd::run_server(port, connect_ip, connect_port);
+        dfd::run_server(listen_addr, port, connect_ip, connect_port);
         return 0;
     }
 
     //else client
-    dfd::P2PClient client(ip_addr, port, my_uuid, download_dir, listen_addr);
-    client.run();
+    dfd::run_client(ip_addr, port, download_dir, listen_addr);
     return 0;
 }
-
-
-

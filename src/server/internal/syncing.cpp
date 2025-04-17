@@ -3,8 +3,26 @@
 #include "networking/socket.hpp"
 #include <iostream>
 #include <ostream>
+#include "networking/fileParsing.hpp"
+#include "sourceInfo.hpp"
+#include "server/internal/db.hpp"
+#include "networking/fileParsing.hpp"
+#include <iostream>
+#include <optional>
+#include <string>
+#include <vector>
+#include "networking/internal/fileParsing/fileUtil.hpp"
+#include <mutex>
+
+
 
 namespace dfd {
+
+
+////////////////////////////////////////////////////////////
+//RELATED TO MESSAGE FORWARDING
+////////////////////////////////////////////////////////////
+
 
 ssize_t forwardRegistration(std::vector<uint8_t>& reg_message,
                             const std::vector<SourceInfo>& servers) {
@@ -54,23 +72,46 @@ ssize_t forwardRegistration(std::vector<uint8_t>& reg_message,
 
 //forwards standard write requests, takes in: message, servers, expected code of the msg, and forward msg creation
 //forward request is called by below functions, and should never be called directly
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * forwardRequest
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> sends a write request (INDEX, DROP, REREGISTER) to all known servers as
+ *    a forwarded request (INDEX_FORWARD, etc.).
+ *
+ *    used by other funcctions not directly called
+ *
+ * Takes:
+ * -> initial_msg:
+ *    the original request message (must match expected_code)
+ * -> servers:
+ *    the list of servers to forward to
+ * -> expected_code:
+ *    expected code
+ *
+ * Returns:
+ * -> a list of servers that failed to acknowledge the forwarded request
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
 std::vector<SourceInfo> forwardRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers,
-                        uint8_t expected_code) {
+                        uint8_t expected_in_code,
+                        uint8_t expected_ret_code) {
     //make sure first byte is expected code
-    if (*initial_msg.begin() != expected_code)
+    if (*initial_msg.begin() != expected_in_code)
         return servers;
 
     //check if creating forward worked
-    if (expected_code == INDEX_REQUEST){
+    if (expected_in_code == INDEX_REQUEST){
         if (EXIT_SUCCESS != createForwardIndex(initial_msg))
             return servers;
-    }else if (expected_code == DROP_REQUEST)
+    }else if (expected_in_code == DROP_REQUEST)
     {
         if (EXIT_SUCCESS != createForwardDrop(initial_msg))
             return servers;
-    }else if (expected_code == REREGISTER_REQUEST)
+    }else if (expected_in_code == REREGISTER_REQUEST)
     {
         if (EXIT_SUCCESS != createForwardRereg(initial_msg))
             return servers;
@@ -118,7 +159,7 @@ std::vector<SourceInfo> forwardRequest(
             //receive the response with timeout
             if (tcp::recvMessage(server_sock, server_response, timeout) >= 0) {
                 //check response
-                if (!server_response.empty() && *server_response.begin() == FORWARD_OK) {
+                if (!server_response.empty() && *server_response.begin() == expected_ret_code) {
                     success = true;
                 }
             }
@@ -141,7 +182,7 @@ std::vector<SourceInfo> forwardIndexRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers) {
     if (!servers.empty())
-        return forwardRequest(initial_msg, servers, INDEX_REQUEST);
+        return forwardRequest(initial_msg, servers, INDEX_REQUEST, INDEX_OK);
     return {};
 }
 
@@ -150,7 +191,7 @@ std::vector<SourceInfo> forwardDropRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers) {
     if (!servers.empty())
-        return forwardRequest(initial_msg, servers, DROP_REQUEST);
+        return forwardRequest(initial_msg, servers, DROP_REQUEST, DROP_OK);
     return {};
 }
 
@@ -159,37 +200,47 @@ std::vector<SourceInfo> forwardReregRequest(
                         std::vector<uint8_t>& initial_msg,
                         const std::vector<SourceInfo>& servers) {
     if (!servers.empty())
-        return forwardRequest(initial_msg, servers, REREGISTER_REQUEST);
+        return forwardRequest(initial_msg, servers, REREGISTER_REQUEST, REREGISTER_OK);
     return {};
 }
 
+
+////////////////////////////////////////////////////////////
+//ADDITIONAL UTILITY USED TO MODIFY OUR VECTOR OF KNOWN SERVERS
+////////////////////////////////////////////////////////////
+
 //removes any SourceInfo from known_servers that appears in failed_servers
 void removeFailedServers(std::vector<SourceInfo>& known_servers,
-                        const std::vector<SourceInfo>& failed_servers) {
+                        const std::vector<SourceInfo>& failed_servers,
+                        std::mutex&                     known_server_mtx) {
     for (auto& thing : failed_servers) {
         std::cout << thing.ip_addr << " " << thing.port << " " << thing.peer_id << std::endl; 
     }
     //iterate through known servers
-    for (size_t i = 0; i < known_servers.size(); ) {
-        bool match = false;
+    {
+        std::lock_guard<std::mutex> lock(known_server_mtx);
+        for (size_t i = 0; i < known_servers.size(); ) {
+            bool match = false;
 
-        //check if current known server is in the list of failed servers
-        for (size_t j = 0; j < failed_servers.size(); ++j) {
-            if (known_servers[i].ip_addr == failed_servers[j].ip_addr &&
-                known_servers[i].port    == failed_servers[j].port) {
-                    //set match true and break
-                match = true;
-                break;
+            //check if current known server is in the list of failed servers
+            for (size_t j = 0; j < failed_servers.size(); ++j) {
+                if (known_servers[i].ip_addr == failed_servers[j].ip_addr &&
+                    known_servers[i].port    == failed_servers[j].port) {
+                        //set match true and break
+                    match = true;
+                    break;
+                }
             }
-        }
-        //if match
-        if (match) {
-            //remove and stay at i
-            known_servers.erase(known_servers.begin() + i);
-        } else {
-            i++;
+            //if match
+            if (match) {
+                //remove and stay at i
+                known_servers.erase(known_servers.begin() + i);
+            } else {
+                i++;
+            }
         }
     }
 }
 
-}
+
+}//namespace

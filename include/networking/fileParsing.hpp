@@ -66,6 +66,8 @@ namespace dfd {
  */
 void setChunkSize(const size_t size);
 
+std::filesystem::path initDownloadDir();
+
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * setDownloadDir
@@ -86,7 +88,8 @@ void setChunkSize(const size_t size);
  *    EXIT_FAILURE
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-int setDownloadDir(const std::filesystem::path& f_path); 
+int  setDownloadDir(const std::filesystem::path& f_path); 
+std::filesystem::path getDownloadDir();
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

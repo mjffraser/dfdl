@@ -85,6 +85,7 @@ inline constexpr uint8_t SOURCE_LIST        = 0x08;
 inline constexpr uint8_t FORWARD_OK         = 0x2F;
 inline constexpr uint8_t CONTROL_REQUEST    = 0xA1;
 inline constexpr uint8_t CONTROL_OK         = 0xA2;
+inline constexpr uint8_t MIGRATE_OK         = 0xB1;
 
 //small wrapper struct for passing all info needed to id
 //file and indexer
@@ -121,7 +122,7 @@ struct FileId {
  *    An empty buffer.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-std::vector<uint8_t> createIndexRequest(FileId& file_info);
+std::vector<uint8_t> createIndexRequest(const FileId& file_info);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -166,7 +167,7 @@ using IndexUuidPair = std::pair<uint64_t, uint64_t>;
  *    An empty buffer.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-std::vector<uint8_t> createDropRequest(IndexUuidPair& uuids);
+std::vector<uint8_t> createDropRequest(const IndexUuidPair& uuids);
 
 /*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
