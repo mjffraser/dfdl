@@ -324,6 +324,13 @@ void run_client(const std::string& ip,
     std::cout << "Shutting down..." << std::endl;
     shutdown = true;
 
+    SourceInfo listener_si;
+    listener_si.ip_addr = listen_addr;
+    listener_si.port    = listener_port;
+    listener_si.peer_id = my_uuid;
+    for (const auto& [uuid, filename] : indexed_files) {
+        doDrop(listener_si, filename, indexed_files, indexed_files_mtx, server_list);
+    }
     storeHostListToDisk(server_list, HOST_FILE_NAME);
 
     my_listener.join(); 
