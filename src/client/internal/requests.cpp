@@ -24,16 +24,16 @@ static struct timeval response_timeout;
 static struct timeval update_timeout;
 
 void init_timeouts() {
-    //CONNECTION TIMEOUT: 0.5s
-    connection_timeout.tv_sec  = 0;
-    connection_timeout.tv_usec = 500000;
+    //CONNECTION TIMEOUT: 3s
+    connection_timeout.tv_sec  = 3;
+    connection_timeout.tv_usec = 0;
 
-    //RESPONSE TIMEOUT: 2s
-    response_timeout.tv_sec  = 2;
+    //RESPONSE TIMEOUT: 20s
+    response_timeout.tv_sec  = 20;
     response_timeout.tv_usec = 0;
 
-    //UPDATE TIMEOUT: 1s
-    update_timeout.tv_sec  = 1;
+    //UPDATE TIMEOUT: 3s
+    update_timeout.tv_sec  = 3;
     update_timeout.tv_usec = 0;
 
     timeout_init = true;
