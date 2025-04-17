@@ -156,6 +156,20 @@ bool doAttempts(std::vector<SourceInfo>& server_list,
     return success;
 }
 
+void communicateBadPeersToServer(const std::vector<SourceInfo> &bad_peers,
+                                       std::vector<SourceInfo> &server_list,
+                                 const uint64_t                 file_uuid)
+{
+    for (const SourceInfo &faulty_client : bad_peers)
+    {
+        if (!doAttempts(server_list, attemptControl, file_uuid, faulty_client))
+        {
+            std::cerr << "[err] Failed to communicate bad peer: " << faulty_client.ip_addr << ":" << faulty_client.port
+                      << " to the server." << std::endl;
+        }
+    }
+}
+
 int doIndex(const SourceInfo&                      my_listener,
             const std::string&                     file_path,
                   std::map<uint64_t, std::string>& indexed_files,
@@ -264,6 +278,10 @@ int doDownload(const uint64_t                 f_uuid,
     ///////////////////////////////////////////////////////////////////////////
     ///STAGE 2: DOWNLOAD REMAINING CHUNKS OF FILE
 
+    if (bad_peers.size() == f_sources.size()) {
+        communicateBadPeersToServer(bad_peers, server_list, f_uuid);
+    }
+
     if (file_out == nullptr) {
         if (f_name.empty()) //if not empty, we already have the file in our download dir, and errored due to that
             std::cerr << "[err] Exhausted peer list before a peer responded. Please try again later." << std::endl;
@@ -360,15 +378,7 @@ int doDownload(const uint64_t                 f_uuid,
         //join all threads and clean up
         for (auto& w : workers) w.join();
 
-        for (SourceInfo& faulty_client : bad_peers ) {
-            std::cout << faulty_client.ip_addr << " " << faulty_client.port << std::endl; 
-            if (!doAttempts(server_list,
-                            attemptControl,
-                            f_uuid,
-                            faulty_client)) {
-                return EXIT_FAILURE;
-            }
-        }
+        communicateBadPeersToServer(bad_peers, server_list, f_uuid);
 
         if (timed_out) {
             std::cerr << "[err] All peers have dropped out mid-download. Cannot continue, sorry." << std::endl;
