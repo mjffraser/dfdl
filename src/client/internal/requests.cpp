@@ -220,6 +220,7 @@ int doDownload(const uint64_t                 f_uuid,
 
     ///////////////////////////////////////////////////////////////////////////
     ///STAGE 1: GET THE BEST SOURCE LIST
+    std::vector<SourceInfo> bad_peers;
 
     std::vector<SourceInfo> f_sources;
     if (!doAttempts(server_list,
@@ -231,7 +232,6 @@ int doDownload(const uint64_t                 f_uuid,
         return EXIT_FAILURE;
     }
 
-    //TODO: more fault tolerance here with server syncing, try other servers dynamically.
     if (f_sources.empty()) {
         std::cerr << "[err] Server responded, but no sources available. Sorry." << std::endl;
         return EXIT_FAILURE;
@@ -252,10 +252,12 @@ int doDownload(const uint64_t                 f_uuid,
                                                         server,
                                                         connection_timeout,
                                                         response_timeout)) {
+
             f_stats[peer_ind] = true; //reset, a download thread can use this peer
             break;
         }
         //otherwise, move on to next peer in the list
+        bad_peers.push_back(server);
     }
 
     ///END STAGE 1: WE LOCK IN THE PEER LIST WE'RE USING PAST THIS POINT
@@ -278,7 +280,6 @@ int doDownload(const uint64_t                 f_uuid,
     if (f_chunks > 1) {
         std::queue<size_t> remaining_chunks;
         std::queue<size_t> done_chunks;
-        std::vector<SourceInfo> bad_peers;
 
         std::mutex remaining_chunks_mtx;
         std::mutex done_chunks_mtx;
@@ -359,7 +360,7 @@ int doDownload(const uint64_t                 f_uuid,
         //join all threads and clean up
         for (auto& w : workers) w.join();
 
-        for(SourceInfo& faulty_client : bad_peers ) {
+        for (SourceInfo& faulty_client : bad_peers ) {
             std::cout << faulty_client.ip_addr << " " << faulty_client.port << std::endl; 
             if (!doAttempts(server_list,
                             attemptControl,
