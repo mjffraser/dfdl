@@ -79,8 +79,6 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
                 break;
             }
 
-            std::cout << "SENDING DROP TO " << our_server.ip_addr << ":" << our_server.port << std::endl;
-            std::cout << "FAULTY INFO: " << file_uuid << " " << faulty_client.peer_id << std::endl;
             IndexUuidPair id_pair(file_uuid, faulty_client.peer_id);
             std::vector<uint8_t> drop_msg = createDropRequest(id_pair);
             if (EXIT_FAILURE == tcp::sendMessage(updete_fd,drop_msg)) {
@@ -333,7 +331,6 @@ void workerThread(std::atomic<bool>&                             server_running,
                 
                 case CONTROL_REQUEST: {
                     auto [file_uuid, faulty_client] = parseControlRequest(client_request);
-                    std::cout << "YAYAYA" << faulty_client.ip_addr << " " << file_uuid << std::endl;
                     if (faulty_client.port == 0) {
                         response = createFailMessage("Invalid message.");
                     } else {

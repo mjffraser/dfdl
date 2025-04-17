@@ -231,7 +231,6 @@ ssize_t recvMessage(int                   socket_fd,
         std::vector<uint8_t> header;
         ssize_t header_read = recvBytes(socket_fd, header, 8, timeout);
         if (header_read != 8) {
-            std::cout << "Only reading " << header_read << " bytes." << std::endl;
             return -1;
         }
         

@@ -152,6 +152,8 @@ void workerNoReply(int                                              udp_sock,
         SourceInfo reader_addr;
         reader_addr.ip_addr = "127.0.0.1"; reader_addr.port = read_workers[next_reader];
 
+        std::cout << "CALLING ELECTION..." << std::endl;
+
         //send election message
         udp::sendMessage(udp_sock, reader_addr, election_msg);
 

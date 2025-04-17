@@ -160,7 +160,6 @@ void downloadThread(const uint64_t                 f_uuid,
     while ((peer_index = selectPeerThreaded(source_stats, stat_mtx)) >= 0) {
         //select peer
         const SourceInfo& selected_peer = sources[peer_index];
-        std::cout << "SELECTING " << selected_peer.ip_addr << ":" << selected_peer.port << std::endl;
 
         //attempt connection
         int sock = connectToSource(selected_peer, connection_timeout); 
