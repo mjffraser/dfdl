@@ -1,7 +1,7 @@
-#include "server/internal/database/db.hpp"
-#include "server/internal/database/internal/types.hpp"
-#include "server/internal/database/internal/queries.hpp"
-#include "server/internal/database/internal/tableInfo.hpp"
+#include "server/internal/db.hpp"
+#include "server/internal/internal/databaseTypes.hpp"
+#include "server/internal/internal/databaseQueries.hpp"
+#include "server/internal/internal/databaseTableInfo.hpp"
 #include "sourceInfo.hpp"
 #include <chrono>
 #include <cstdlib>
@@ -150,10 +150,21 @@ std::string indexKey(const SourceInfo& indexer, const uint64_t uuid) {
     return std::to_string(indexer.peer_id) + "|" + std::to_string(uuid);
 }
 
+//resets db_locking when destroyed
+struct WriteLocker {
+    std::atomic<bool>& db_locking;
+    WriteLocker(std::atomic<bool>& flag) : db_locking(flag) {
+        db_locking = true;
+    }
+
+    ~WriteLocker() {
+        db_locking = false;
+    }
+};
+
 int Database::indexFile(const uint64_t     uuid, 
                         const SourceInfo&  indexer,
-                        const uint64_t     f_size,
-                        std::shared_mutex& db_lock) {
+                        const uint64_t     f_size) {
     //first check if indexer already exists and up-to-date
     std::string        peer_condition = PEER_KEY.first + "=" + std::to_string(indexer.peer_id);
     AttributeValuePair peer_pk        = std::make_pair(PEER_KEY.first, indexer.peer_id);
@@ -162,7 +173,11 @@ int Database::indexFile(const uint64_t     uuid,
         {PEER_ATTRIBUTES[1].first, indexer.port}
     };
 
-    //lock on db
+    //start locking
+    WriteLocker locking(db_locking);
+
+    //with lock on db
+    //begin critical section
     { 
         std::unique_lock<std::shared_mutex> lock(db_lock);
 
@@ -204,19 +219,21 @@ int Database::indexFile(const uint64_t     uuid,
                             index_values, 
                             index_condition);
         if (res == EXIT_FAILURE)
-            return EXIT_FAILURE;
+            return EXIT_FAILURE; 
         
     }
+    //end critical section
 
     return EXIT_SUCCESS;
 }
 
 int Database::dropIndex(const uint64_t     f_uuid,
-                        const uint64_t     c_uuid,
-                        std::shared_mutex& db_lock) {
+                        const uint64_t     c_uuid) {
     SourceInfo dummy_client; dummy_client.peer_id = c_uuid;
     std::string        index_key = indexKey(dummy_client, f_uuid);
     AttributeValuePair index_pk  = std::make_pair(INDEX_KEY.first, index_key);
+
+    WriteLocker locking(db_locking);
 
     std::unique_lock<std::shared_mutex> lock(db_lock);
     auto err_val = doDelete(db, INDEX_NAME, index_pk);
@@ -226,9 +243,7 @@ int Database::dropIndex(const uint64_t     f_uuid,
 }
 
 int Database::grabSources(const uint64_t&          uuid,
-                          std::vector<SourceInfo>& dest, 
-                          std::atomic<bool>&       db_locking, 
-                          std::shared_mutex&       db_lock) {
+                          std::vector<SourceInfo>& dest) {
     std::vector<Row> peers;
 
     //select on file uuid
@@ -239,11 +254,14 @@ int Database::grabSources(const uint64_t&          uuid,
         while (db_locking) {std::this_thread::sleep_for(std::chrono::milliseconds(1));}
         std::shared_lock<std::shared_mutex> lock(db_lock);
 
+
+
         auto err_val = doSelect(db, 
                                 INDEX_NAME, 
                                 {INDEX_ATTRIBUTES[0].first}, 
                                 {select_constraint},
                                 &peers);
+
         if (err_val)
             return reportError(err_val.value());
         else if (peers.empty())
@@ -265,6 +283,7 @@ int Database::grabSources(const uint64_t&          uuid,
                                to_select,
                                {select_constraint},
                                &peer_row);
+
             if (err_val)
                 return reportError(err_val.value());
 
@@ -283,14 +302,16 @@ int Database::grabSources(const uint64_t&          uuid,
     return EXIT_SUCCESS;
 }
 
-int Database::updateClient(const SourceInfo&  indexer,
-                           std::shared_mutex& db_lock) {
+int Database::updateClient(const SourceInfo&  indexer) {
     std::string        peer_condition = PEER_KEY.first + "=" + std::to_string(indexer.peer_id);
     AttributeValuePair peer_pk        = std::make_pair(PEER_KEY.first, indexer.peer_id);
     std::vector<AttributeValuePair> peer_values = {
         {PEER_ATTRIBUTES[0].first, indexer.ip_addr},
         {PEER_ATTRIBUTES[1].first, indexer.port}
     };
+
+    //start locking
+    WriteLocker locking(db_locking);
 
     std::unique_lock<std::shared_mutex> lock(db_lock);
     int res = insertOrUpdate(db,
@@ -299,6 +320,20 @@ int Database::updateClient(const SourceInfo&  indexer,
                              peer_values,
                              peer_condition);
     return res;
+}
+
+Database* openDatabase(const std::string& db_path,
+                       std::shared_mutex& db_lock,
+                       std::atomic<bool>& db_locking) {
+    try {
+        return new Database(db_path, db_lock, db_locking);
+    } catch (const std::runtime_error&) {
+        return nullptr;
+    }
+}
+
+void closeDatabase(Database* db) {
+    if (db) delete db;
 }
 
 }

@@ -10,7 +10,7 @@
 
 #include <sqlite3.h>
 
-#include "server/internal/database/internal/types.hpp"
+#include "server/internal/internal/databaseTypes.hpp"
 
 namespace dfd {
 
@@ -35,13 +35,12 @@ struct SourceInfo; //definition in src
  * -> Takes:
  *    -> db_path:
  *       A path to the database file to either open or create.
- * -> Throws:
- *    -> SQLError:
- *       Any error that occurs when interacting with an SQLite database.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 class Database {
 private:
+    std::shared_mutex& db_lock;
+    std::atomic<bool>& db_locking;
     sqlite3*    db;
     std::string err_msg = ""; //set on any error
         
@@ -116,6 +115,35 @@ private:
                              std::vector<AttributeValuePair>& values,
                        const std::string&                     pk_condition);
 
+    //CONSTRUCTOR
+    Database(const std::string& db_path,
+             std::shared_mutex& lock,
+             std::atomic<bool>& trying_to_lock) :
+             db_lock(lock), db_locking(trying_to_lock) {
+        std::ifstream db_file(db_path);
+        bool existed = db_file.good();
+        int res = sqlite3_open(db_path.c_str(), &db);
+
+        if (!existed) {
+            if (setupDatabase() != EXIT_SUCCESS)
+                throw std::runtime_error(sqliteError());
+        }
+
+        if (sqlite3_exec(db, "PRAGMA foreign_keys = ON", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            throw std::runtime_error(sqliteError());
+        }
+    }
+
+    //DESTRUCTOR
+    ~Database() {
+        sqlite3_close(db);
+    }
+
+    friend Database* openDatabase(const std::string& db_path,
+                                  std::shared_mutex& db_lock,
+                                  std::atomic<bool>& db_locking);
+    friend void closeDatabase(Database *db);
+
 public:
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -166,6 +194,12 @@ public:
      * -> path:
      *    A full path for the SQLite database to copy from, relative or
      *    absolute.
+     *
+     * Returns:
+     * -> On success:
+     *    EXIT_SUCCESS
+     * -> On failure:
+     *    EXIT_FAILURE
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
     int mergeDatabases(const std::string& path);
@@ -196,8 +230,7 @@ public:
      */
     int indexFile(const uint64_t     uuid, 
                   const SourceInfo&  indexer,
-                  const uint64_t     f_size,
-                  std::shared_mutex& db_lock);
+                  const uint64_t     f_size);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -220,9 +253,8 @@ public:
      *    EXIT_FAILURE
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int dropIndex(const uint64_t     f_uuid,
-                  const uint64_t     c_uuid,
-                  std::shared_mutex& db_lock);
+    int dropIndex(const uint64_t f_uuid,
+                  const uint64_t c_uuid);
 
     /*
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -239,8 +271,6 @@ public:
      * -> dest:
      *    A vector to put the result into. If no indexers are found the vector
      *    is CLEARED.
-     * -> f_size:
-     *    The size of the file being downloaded, in bytes.
      *
      * Returns:
      * -> On success:
@@ -250,9 +280,7 @@ public:
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
     int grabSources(const uint64_t&          uuid,
-                    std::vector<SourceInfo>& dest, 
-                    std::atomic<bool>&       db_locking, 
-                    std::shared_mutex&       db_lock);
+                    std::vector<SourceInfo>& dest);
 
 
     /*
@@ -274,29 +302,47 @@ public:
      *    EXIT_FAILURE, on a critical error.
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      */
-    int updateClient(const SourceInfo&  indexer,
-                     std::shared_mutex& db_lock);
+    int updateClient(const SourceInfo& indexer);
     
-    //CONSTRUCTOR
-    Database(const std::string& db_path) {
-        std::ifstream db_file(db_path);
-        bool existed = db_file.good();
-        int res = sqlite3_open(db_path.c_str(), &db);
-
-        if (!existed) {
-            if (setupDatabase() != EXIT_SUCCESS)
-                throw std::runtime_error(sqliteError());
-        }
-
-        if (sqlite3_exec(db, "PRAGMA foreign_keys = ON", nullptr, nullptr, nullptr) != SQLITE_OK) {
-            throw std::runtime_error(sqliteError());
-        }
-    }
-
-    //DESTRUCTOR
-    ~Database() {
-        sqlite3_close(db);
-    }
 };
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * openDatabase
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Allocates a Database class, which manages an SQLite database, and provides
+ *    member functions to perform database operations.
+ *
+ * Takes:
+ * -> db_path:
+ *    A path to either an existing SQLite database file, or the path for the
+ *    file to create.
+ *
+ * Returns:
+ * -> On success:
+ *    A pointer to the Database class. This must be cleaned up with
+ *    closeDatabase()
+ * -> On failure:
+ *    nullptr
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+Database* openDatabase(const std::string& db_path,
+                       std::shared_mutex& db_lock,
+                       std::atomic<bool>& db_locking);
+
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * closeDatabase
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Description:
+ * -> Releases memory allocated by openDatabase().
+ *
+ * Takes:
+ * -> db:
+ *    The Database* returned by openDatabase().
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+void closeDatabase(Database* db);
 
 } //dfd 

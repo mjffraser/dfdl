@@ -20,7 +20,7 @@ using ForeignKey = std::tuple<std::string,  //KEY_NAME
                               std::string>; //REF_KEY
 
 using AttributeValuePair = std::pair<std::string,                //attribute name
-                                     std::variant<uint64_t,      //possible type (512 hashes, file sizes)
-                                                  uint16_t,      //possible type (port #)
+                                     std::variant<uint64_t,      //possible type (64-bit hashes, file sizes)
+                                                  uint16_t,      //possible type (16-bit port #)
                                                   std::string>>; //possible type (names, etc.)
 } //dfd

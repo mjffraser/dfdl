@@ -1,6 +1,6 @@
 #pragma once
 
-#include "server/internal/database/internal/types.hpp"
+#include "server/internal/internal/databaseTypes.hpp"
 #include <utility>
 
 namespace dfd {
