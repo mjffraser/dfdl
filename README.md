@@ -21,7 +21,6 @@ $ make
 | --client | -c     | n/a            | n/a                       | open as client                  | CLIENT          | yes                                          |
 | --port   | none   | \<port #\>[^1] | server port to connect to | port to open server listener on | CLIENT & SERVER | required by server. optional for client.[^2] |
 | --ip     | none   | \<IPv4 addr\>  | server ip to connect to   | n/a                             | CLIENT          | optional for client.[^2]                     |
-| --download | none | \<path\> | set a directory to download to[^3] | n/a | CLIENT | optional |
 | --listen | none | \<IPv4 addr\> | interface to listen on[^4] | n/a | CLIENT | yes |
 | --connect | none | \<ip\> \<port\> | n/a | server to register with on startup | SERVER | no[^5] |
 
@@ -55,3 +54,13 @@ Stops accepting peer requests for file associated with the provided id. The id s
 download:
 Download a file from a peer. Must provide the full unique id. 
 ```
+
+## Example Server Usage:
+### Starting a brand new server with no existing network:
+> ./dfdl --server --port 1234 --listen \<interface (ex. 192.168.1.0)\>
+
+### Starting a new server and connecting to an existing server:
+> ./dfdl --server --port 1234 --listen \<interface\> --connect \<existing server addr\> \<existing server port\>
+
+## Example Client Usage:
+> ./dfdl --client --ip \<server to connect to\> --port \<server port\> --listen \<my interface I'll accept connections on\>
