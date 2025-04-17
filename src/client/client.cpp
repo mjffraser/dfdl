@@ -86,12 +86,16 @@ void printList(std::map<uint64_t, std::string>& indexed_files) {
         return;
     }
 
-    std::map<uint64_t, std::string>::iterator it;
-    for (it = indexed_files.begin(); it != indexed_files.end(); ++it) {
-        std::cout << "UUID: " << it->first
-                  << ", "
-                  << "Filename: " << it->second
-                  << std::endl;
+    for (const auto& [uuid, filename] : indexed_files) {
+        try {
+            std::filesystem::path abs_path = std::filesystem::canonical(filename);
+            std::cout << "UUID: " << uuid
+                      << ", "
+                      << "Filename: " << abs_path.string()
+                      << std::endl;
+        } catch (const std::filesystem::filesystem_error& e) {
+            std::cerr << "Error resolving path for file '" << filename << "': " << e.what() << std::endl;
+        }
     }
 }
 
