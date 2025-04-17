@@ -22,7 +22,6 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
                       std::condition_variable&                     control_cv,
                       std::mutex&                                  control_mtx,
                       SourceInfo&                                  our_server) {
-
     while(server_running) {
         SourceInfo  faulty_client;
         uint64_t    file_uuid;
@@ -33,10 +32,13 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
             if (!server_running) {
                 break;
             } else {
-                auto [faulty_client, file_uuid] = control_q.front();
+                auto [bad_client, uuid] = control_q.front();
                 control_q.pop();
+                faulty_client = bad_client;
+                file_uuid = uuid;
             }
         }
+
         int num_of_attempts = 3;
         bool client_reachable = false;
         bool file_avalible = true;
@@ -61,44 +63,7 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
             }
         }
 
-        // attempt to download one chunk from client
-        while (client_reachable) {
-
-            // check if file exist on client
-            std::vector<uint8_t> control_msg = createDownloadInit(file_uuid, std::nullopt);
-            if (EXIT_FAILURE == tcp::sendMessage(sock_fd, control_msg)) {
-                std::cerr << "[controlMsgThread] Failed to send message to client.\n";
-                closeSocket(sock_fd);
-                client_reachable = false;
-                break;
-            }
-
-            // expect client to ack back
-            std::vector<uint8_t> request_ack;
-            if (tcp::recvMessage(sock_fd, request_ack, timeout) < 0) {
-                client_reachable = false;
-                closeSocket(sock_fd);
-                break;
-            }
-
-            // check for ack code
-            if (request_ack.size() < 1 || request_ack[0] != DOWNLOAD_CONFIRM) {
-                file_avalible = false;
-                if (request_ack[0] == FAIL) {
-                    // error - client can't find file
-                } 
-                closeSocket(sock_fd);
-                break;
-            }
-
-            // terminate file download
-            tcp::sendMessage(sock_fd, {FINISH_DOWNLOAD});
-            closeSocket(sock_fd);
-            break;
-        }
-
         if (!client_reachable || !file_avalible) {
-
             auto updete_sock = openSocket(false, 0, false);
             if (!updete_sock) {
                 //handle fail to open
@@ -114,6 +79,8 @@ void controlMsgThread(std::atomic<bool>&                           server_runnin
                 break;
             }
 
+            std::cout << "SENDING DROP TO " << our_server.ip_addr << ":" << our_server.port << std::endl;
+            std::cout << "FAULTY INFO: " << file_uuid << " " << faulty_client.peer_id << std::endl;
             IndexUuidPair id_pair(file_uuid, faulty_client.peer_id);
             std::vector<uint8_t> drop_msg = createDropRequest(id_pair);
             if (EXIT_FAILURE == tcp::sendMessage(updete_fd,drop_msg)) {
@@ -366,6 +333,7 @@ void workerThread(std::atomic<bool>&                             server_running,
                 
                 case CONTROL_REQUEST: {
                     auto [file_uuid, faulty_client] = parseControlRequest(client_request);
+                    std::cout << "YAYAYA" << faulty_client.ip_addr << " " << file_uuid << std::endl;
                     if (faulty_client.port == 0) {
                         response = createFailMessage("Invalid message.");
                     } else {
@@ -374,6 +342,7 @@ void workerThread(std::atomic<bool>&                             server_running,
                             control_q.push({faulty_client, file_uuid});
                         }
                         control_cv.notify_one();
+                        response = {CONTROL_OK};
                     break;
                     }
                 }

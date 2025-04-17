@@ -277,7 +277,7 @@ void clientConnection(int                                              client_so
         //get response
         std::vector<uint8_t> worker_response;
         if (EXIT_SUCCESS == recvWorkerMessage(worker_sock, worker_addr, worker_response)) {
-            std::cout << "SENT CODE:"   << (int)*client_request.begin() << std::endl;
+            std::cout << "REPLY CODE:"   << (int)*worker_response.begin() << std::endl;
             if ((int)*worker_response.begin() == 0)
                 std::cout << parseFailMessage(worker_response) << std::endl;
             
